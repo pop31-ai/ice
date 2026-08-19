@@ -18,7 +18,7 @@ for f in pdfs:
     card.append(
         '<a class="jc" href="%s" download>\n'
         '  <div class="jcover">📰</div><div class="jname">%s</div>'
-        '  <div class="jsub">10 выпусков · %s</div></a>'
+        '  <div class="jsub">10 выпусков · 20 страниц · %s</div></a>'
         % (rel(os.path.join("journals_pdf", n)), disp, "глянцевая мода" if "glossy" in n else "из-под капота"))
 cards = "\n".join(card)
 
@@ -39,6 +39,10 @@ html = """<!DOCTYPE html>
   h2 { font-size: 18px; margin: 26px 0 10px; border-bottom: 1px solid rgba(255,255,255,.2); padding-bottom: 6px; }
   .play { display:inline-block; margin: 14px 0 6px; background: linear-gradient(180deg,#4aa8e0,#2f7fc0);
           padding: 12px 26px; border-radius: 12px; font-weight:700; font-size:16px; }
+  .topnav { margin: 10px 0 4px; }
+  .topnav a { display:inline-block; margin:0 10px 8px 0; background: rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.16);
+              padding: 9px 18px; border-radius: 10px; font-size:13px; font-weight:600; }
+  .topnav a:hover { background: rgba(255,255,255,.14); }
   .grid { display:grid; grid-template-columns: repeat(auto-fill,minmax(200px,1fr)); gap:12px; margin-top:10px; }
   .jc { background: rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.14); border-radius:14px;
         padding:14px; transition:.15s; }
@@ -55,9 +59,13 @@ html = """<!DOCTYPE html>
 <body>
 <div class="wrap">
   <h1>🧊 Ледяной Пресс-Центр
-    <small>газета «Ледяная Вечерка» · 100 статей-анализов · 100 номеров будущего · 12 журналов по месяцам 2026–2027</small>
+    <small>газета «Ледяная Вечерка» · 100 статей-анализов · 50 номеров будущего · 12 журналов · 240 страниц · 120 обложек</small>
   </h1>
   <a class="play" href="index.html">🎮 Играть в «Ледяных человечков»</a>
+  <div class="topnav">
+    <a href="kiosk.html">🗞 Газетный киоск — 120 обложек</a>
+    <a href="wiki-ice.html">📖 Энциклопедия Льда — движок, герои, инженерка, Бабай</a>
+  </div>
 
   <h2>📰 Журналы (PDF · по 10 выпусков)</h2>
   <div class="grid">@@CARDS@@</div>

@@ -18,6 +18,8 @@ from reportlab.pdfgen import canvas as rlcanvas
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
+from ice_lore import PANS, BABAIS, EXTRA, ENGINEERING as ENGCALC
+
 W, H = A4
 
 BASE = os.path.dirname(__file__)
@@ -576,88 +578,159 @@ def draw_hero_section(c, label, text, y, pal, car_p):
     return y - 16
 
 
+def _one(text, n):
+    text = " ".join(text.split())
+    return text[:n].rsplit(" ", 1)[0] + "…" if len(text) > n else text
+
+
+def _card(c, x, y, w, h, title, body, tcol, bcol, border, glass=False):
+    """Рубриковая карточка: подложка, заголовок-плашка, обёрнутый текст."""
+    if glass:
+        c.setFillColor("#17101f"); c.setStrokeColor(border)
+    else:
+        c.setFillColor("#FFFFFF"); c.setStrokeColor(border)
+    c.roundRect(x, y, w, h, 8, fill=1, stroke=1)
+    c.setFillColor(tcol)
+    c.roundRect(x + 3, y + h - 18, w - 6, 15, 5, fill=1, stroke=0)
+    c.setFont("DejaVu-Bold", 7); c.setFillColor("#FFFFFF")
+    c.drawCentredString(x + w / 2, y + h - 14.5, title)
+    c.setFont("DejaVu", 8); c.setFillColor(bcol)
+    yy = y + h - 30
+    for ln in wrap(body, "DejaVu", 8, w - 24):
+        if yy < y + 8:
+            break
+        c.drawString(x + 12, yy, ln)
+        yy -= 11.4
+
+
+def rubric_page(c, jno, iss, issue, quote, hint, glass=False):
+    """Вторая страница номера — лист рубрик: ПРОГНОЗ-инженерка, СКОВОРОДНИК, БАБАЙ, КАНЦЕЛЯРИЯ."""
+    name, slug, slogan = JOURNALS[jno]
+    sky1, sky2, sun, accent, mid, dark, chip = PAL[jno]
+    if glass:
+        base, bar, ink, frame_col = "#0f0b16", sun, sky2, sun
+    else:
+        base, bar, ink, frame_col = sky2, accent, dark, mid
+    c.setFillColor(base); c.rect(0, 0, W, H, fill=1, stroke=0)
+    c.setStrokeColor(frame_col); c.setLineWidth(1.2); c.rect(16, 16, W - 32, H - 32, fill=0, stroke=1)
+    # хедер
+    c.setFillColor(bar)
+    c.roundRect(30, H - 68, W - 60, 40, 8, fill=1, stroke=0)
+    c.setFont("DejaVu-Bold", 13); c.setFillColor("#FFFFFF")
+    c.drawCentredString(W / 2, H - 49, "«%s» · ЛИСТ РУБРИК" % name)
+    c.setFont("DejaVu-Obl", 8); c.setFillColor(ink)
+    c.drawCentredString(W / 2, H - 74, "№ %02d/10 · %s · вторая страница номера — как в настоящих газетах"
+                     % (issue, iss.get("date", "")))
+    # рубрики
+    eng_title, eng_body = ENGCALC[(issue - 1) % len(ENGCALC)]
+    pan_kind, pan_text = PANS[(jno + issue) % len(PANS)]
+    babai = BABAIS[(jno * 3 + issue) % len(BABAIS)]
+    extra = EXTRA[(jno + issue * 2) % len(EXTRA)]
+    tcol_l, tcol_r = mid, accent
+    _card(c, 34, H - 300, 262, 178, "ПРОГНОЗ · ИНЖЕНЕРНЫЕ ВЫКЛАДКИ",
+          "Расчёт: " + eng_title + ". " + eng_body, tcol_l, ink, frame_col, glass)
+    _card(c, 34, 96, 262, 168, "КАНЦЕЛЯРИЯ · ПРОЧЕЕ",
+          extra + " Учётная строка: «" + _one(iss.get("refl", ""), 90) + "»",
+          tcol_l, ink, frame_col, glass)
+    # правая колонка
+    _card(c, 310, H - 300, 262, 178, "СКОВОРОДНИК · %s" % pan_kind,
+          pan_text + " Зарисовка на полях: сковорода — тоже судьба.",
+          tcol_r, ink, frame_col, glass)
+    _card(c, 310, 96, 262, 168, "БАБАЙ · НАБЛЮДЕНИЯ",
+          babai + " Записано дежурным по лагерю, подписано неразборчиво.",
+          tcol_r, ink, frame_col, glass)
+    # нижняя полоса: техпаспорт + тайная строка
+    draw_techpass(c, 74, tuple(PAL[jno]))
+    c.setFont("DejaVu-Obl", 7.5); c.setFillColor(ink)
+    c.drawCentredString(W / 2, 46, "……" + hint + "……")
+    c.setFont("DejaVu", 6.6); c.setFillColor(ink)
+    c.drawCentredString(W / 2, 26, "серия «%s» · № %02d/10 · лист 2/2 · всё по статьям «Ледяной Вечерки»"
+                     % (name, issue))
+
+
 def build_pdf(jno, issues):
+    """Смелая афиша номера: большая обложка, чипы-сводки, крупный график. Минимум текста."""
     name, slug, slogan = JOURNALS[jno]
     if jno >= 11:
         return build_glossy_pdf(jno, issues)
     sky1, sky2, sun, accent, mid, dark, chip = PAL[jno]
     path = os.path.join(OUT, "journal-%02d-%s-01-10.pdf" % (jno, slug))
     c = rlcanvas.Canvas(path, pagesize=A4)
-    banner_p = banner(jno)
-    panels = {1: gauge, 2: stormradar, 3: popgrowth, 4: scoredonut}
     for idx, iss in enumerate(issues):
         issue = idx + 1
         chart_p = chart(jno, issue)
-        car_p = caricature(jno, issue, iss.get("hero", ""))
+        cover_p = os.path.join(BASE, "covers", "j%02d-issue-%02d.png" % (jno, issue))
+        if not os.path.exists(cover_p):
+            cover_p = banner(jno)
         quote, hint = epigraph(jno)
-        # фон
-        c.setFillColor(sky1); c.rect(0, 0, W, H, fill=1, stroke=0)
-        # шапка
-        c.setFillColor(accent)
-        c.roundRect(30, H - 64, W - 60, 34, 6, fill=1, stroke=0)
-        c.setFont("DejaVu-Bold", 13.5); c.setFillColor("#FFFFFF")
-        c.drawCentredString(W / 2, H - 55, "ЖУРНАЛ «%s» · %02d/10 · ЛЕДЯНОЙ ПРЕСС-ЦЕНТР" % (name, issue))
-        c.setFont("DejaVu-Obl", 8); c.setFillColor(sky2)
-        c.drawCentredString(W / 2, H - 69, slogan)
-        # дата
-        c.setFillColor(mid)
-        c.roundRect(30, H - 94, W - 60, 22, 5, fill=1, stroke=0)
-        c.setFont("DejaVu", 9); c.setFillColor("#FFFFFF")
-        c.drawCentredString(W / 2, H - 88, iss.get("date", "") + " · ИЗ-ПОД КАПОТА ИГРЫ · архив будущего — станет историей")
-        # обложка
-        c.drawImage(banner_p, 30, 562, W - 60, 180, preserveAspectRatio=True)
-        # заголовок
-        top = 526
-        c.setFillColor(dark)
-        c.roundRect(30, top, W - 60, 30, 5, fill=1, stroke=0)
-        c.setFont("DejaVu-Bold", 13); c.setFillColor("#FFFFFF")
-        c.drawString(44, top + 8, "№ %02d · " % issue)
-        c.drawString(110, top + 8, iss.get("title", ""))
-        # панели-инфографика
-        c.setFillColor("white")
-        c.roundRect(30, 452, W - 60, 56, 6, fill=1, stroke=0)
-        for k, fx in zip(sorted(panels), [32, 167, 302, 437]):
-            pp = panels[k](jno, issue)
-            c.drawImage(pp, fx, 454, 124, 52, preserveAspectRatio=True, anchor="c")
-        # техпаспорт из-под капота
-        draw_techpass(c, 424, tuple(PAL[jno]))
-        # симуляция партии
+        # фон: двусоставный цвет
+        c.setFillColor(sky2); c.rect(0, H / 2, W, H / 2, fill=1, stroke=0)
+        c.setFillColor(sky1); c.rect(0, 0, W, H / 2, fill=1, stroke=0)
+        # лёгкий орнамент-снег
+        import random
+        rnd = random.Random(jno * 100 + issue)
         c.setFillColor("#FFFFFF")
-        c.roundRect(30, 378, W - 60, 42, 6, fill=1, stroke=0)
-        c.drawImage(chart_p, 34, 381, W - 68, 36)
-        # секции
-        y = 370
-        sections = [
-            ("РАЗМЫШЛЕНИЕ ИЗ-ПОД КАПОТА", "refl"),
-            ("ПРОГНОЗ НА МЕСЯЦ", "forecast"),
-            ("ПРИЁМ И СТРАТЕГИЯ", "tip"),
-            ("ПАРАЛЛЕЛЬ С ДРУГИМИ ИГРАМИ", "other"),
-            ("КОНКУРС НОМЕРА", "contest"),
-        ]
-        for label, key in sections:
-            y = draw_section(c, label + ".  ", iss.get(key, ""), y, tuple(PAL[jno]), lw=500)
-            y -= 5
-        y = draw_hero_section(c, "СУДЬБЫ ГЕРОЕВ.  ", iss.get("hero", "") + " " + iss.get("mirror", ""),
-                              y, tuple(PAL[jno]), car_p)
-        y -= 4
-        # тайная строка + продолжение
+        for _ in range(40):
+            c.circle(rnd.randint(20, int(W) - 20), rnd.randint(30, int(H) - 90), 1.2 + rnd.random() * 1.2, fill=1, stroke=0)
+        # мастхэд
+        c.setFillColor(accent)
+        c.roundRect(30, H - 78, W - 60, 44, 8, fill=1, stroke=0)
+        c.setFont("DejaVu-Bold", 15); c.setFillColor("#FFFFFF")
+        c.drawCentredString(W / 2, H - 66, "«%s»" % name)
+        c.setFont("DejaVu-Obl", 8.5); c.setFillColor(sky2)
+        c.drawCentredString(W / 2, H - 84, slogan)
+        # дата — плашка справа
+        c.setFillColor(mid)
+        c.roundRect(W - 215, H - 122, 185, 22, 5, fill=1, stroke=0)
+        c.setFont("DejaVu", 9); c.setFillColor("#FFFFFF")
+        c.drawCentredString(W - 122.5, H - 116, iss.get("date", "") + " · № %02d/10" % issue)
+        # заголовок-плакат
         c.setFillColor(dark)
-        c.roundRect(30, y - 28, W - 60, 24, 5, fill=1, stroke=0)
-        c.setFont("DejaVu-Obl", 7.5); c.setFillColor(sky2)
-        c.drawCentredString(W / 2, y - 12, "……" + hint)
-        y -= 32
-        c.setFillColor(sky2)
-        c.roundRect(30, y - 24, W - 60, 22, 5, fill=1, stroke=0)
-        c.setFont("DejaVu-Bold", 8.5); c.setFillColor(dark)
-        c.drawCentredString(W / 2, y - 16, "Продолжение серии — в следующем месяце · Лёд помнит всё")
+        c.roundRect(30, 704, W - 60, 36, 7, fill=1, stroke=0)
+        c.setFont("DejaVu-Bold", 15); c.setFillColor(sky2)
+        c.drawString(46, 715, "№ %02d · " % issue)
+        c.drawString(122, 715, _one(iss.get("title", ""), 40))
+        # ОБЛОЖКА — главный герой страницы
+        c.setFillColor("white")
+        c.roundRect(66, 296, W - 132, 404, 12, fill=1, stroke=0)
+        c.drawImage(cover_p, 70, 300, W - 140, 396, preserveAspectRatio=True, anchor="c")
+        # чипы-сводки (море в одну строку)
+        takes = [
+            ("СКАЗ", _one(iss.get("refl", ""), 72)),
+            ("ПРОГНОЗ", _one(iss.get("forecast", ""), 72)),
+            ("ПРИЁМ", _one(iss.get("tip", ""), 72)),
+            ("ПАРАЛЛЕЛЬ", _one(iss.get("other", ""), 72)),
+            ("КОНКУРС", _one(iss.get("contest", ""), 72)),
+        ]
+        for i, (lab, txt) in enumerate(takes):
+            bx = 30 + i * 108
+            c.setFillColor("white")
+            c.roundRect(bx, 216, 102, 76, 7, fill=1, stroke=0)
+            c.setFillColor(accent)
+            c.roundRect(bx, 282, 102, 14, 5, fill=1, stroke=0)
+            c.setFont("DejaVu-Bold", 6.5); c.setFillColor("#FFFFFF")
+            c.drawCentredString(bx + 51, 287, "◆ " + lab)
+            c.setFillColor(dark)
+            c.setFont("DejaVu", 7)
+            for j, ln in enumerate(wrap(txt, "DejaVu", 7, 94)[:3]):
+                c.drawString(bx + 5, 272 - j * 9, ln)
+        # крупный график симуляции
+        c.setFillColor("white")
+        c.roundRect(30, 96, W - 60, 112, 8, fill=1, stroke=0)
+        c.drawImage(chart_p, 36, 100, W - 72, 104)
+        # тайная строка
+        c.setFont("DejaVu-Obl", 7.5); c.setFillColor(dark)
+        c.drawCentredString(W / 2, 84, "…%s…" % hint)
+        # техпаспорт
+        draw_techpass(c, 56, tuple(PAL[jno]))
         # подвал
         c.setFillColor(accent)
-        c.roundRect(30, 40, W - 60, 24, 5, fill=1, stroke=0)
-        c.setFont("DejaVu", 7)
-        c.setFillColor("#FFFFFF")
-        c.drawCentredString(W / 2, 49, TECHPASSPORT[:180])
-        c.setFont("DejaVu-Obl", 6.8); c.setFillColor(dark)
-        c.drawCentredString(W / 2, 26, "«%s" % quote[:170] + "…»  ·  журнал «%s» · игра «Ледяные человечки»" % name)
+        c.roundRect(30, 28, W - 60, 22, 5, fill=1, stroke=0)
+        c.setFont("DejaVu", 7); c.setFillColor("#FFFFFF")
+        c.drawCentredString(W / 2, 34, "серия «%s» · книга «%s» · герой: %s …" %
+                            (name, quote[:60], _one(iss.get("hero", ""), 90)))
+        c.showPage()
+        rubric_page(c, jno, iss, issue, quote, hint, glass=False)
         c.showPage()
     c.save()
     return path
@@ -747,6 +820,8 @@ def build_glossy_pdf(jno, issues):
         c.drawCentredString(W / 2, 49, TECHPASSPORT[:180])
         c.setFont("DejaVu-Obl", 7); c.setFillColor(sky1)
         c.drawCentredString(W / 2, 30, "глянцевый журнал о будущем игры «Ледяные человечки» · всё по статьям «Ледяной Вечерки»")
+        c.showPage()
+        rubric_page(c, jno, iss, issue, quote, hint, glass=True)
         c.showPage()
     c.save()
     return path
