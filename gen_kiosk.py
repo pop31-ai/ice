@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Генератор kiosk.html — «Газетный киоск»: все 120 обложек по 12 сериям (10 номеров)."""
+"""Генератор kiosk.html — «Газетный киоск»: все обложки по всем сериям (10 номеров в каждой)."""
 import os, glob, urllib.parse
+import fitz
 
 import gen_pdf_journals as g
 from gen_journal_catalog import THEMES, HEROES
@@ -13,19 +14,38 @@ MONTHS = ["январь", "февраль", "март", "апрель", "май"
           "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"]
 
 
-def issue_date(jno, issue):
+def idx_for(jno, issue):
     idx = (jno - 1) + (issue - 1)
+    if jno >= 13:
+        idx += 9  # Золотой журнал начнёт с октября 2027
+    return idx
+
+
+def issue_date(jno, issue):
+    idx = idx_for(jno, issue)
     return "%s %d" % (MONTHS[idx % 12].capitalize(), 2026 + idx // 12)
 
 
+def first_page(jno, issue):
+    return issue * 3 - 2 if jno >= 13 else issue * 2 - 1
+
+
 def txt_path(jno, slug, issue):
-    idx = (jno - 1) + (issue - 1)
+    idx = idx_for(jno, issue)
     mdir = "%d-%02d" % (2026 + idx // 12, idx % 12 + 1)
+    hits = glob.glob(os.path.join("journals", mdir, "journal-%02d-*-issue-%02d.txt" % (jno, issue)))
+    if hits:
+        return hits[0].replace("\\", "/")
     return os.path.join("journals", mdir, "journal-%02d-%s-issue-%02d.txt" % (jno, slug, issue))
 
 
-def pdf_path(jno, slug, glossy):
-    suf = "-glossy" if glossy else ""
+def pdf_path(jno, slug):
+    if jno >= 13:
+        suf = "-golden"
+    elif jno >= 11:
+        suf = "-glossy"
+    else:
+        suf = ""
     return os.path.join("journals_pdf", "journal-%02d-%s-01-10%s.pdf" % (jno, slug, suf))
 
 
@@ -34,40 +54,45 @@ def q(p):
 
 
 series_blocks = []
-for jno in range(1, 13):
+for jno in range(1, 14):
     name, slug, slogan = g.JOURNALS[jno]
     glossy = jno >= 11
     thumbs = []
     for issue in range(1, 11):
         date = issue_date(jno, issue)
-        cov = os.path.join(COVERS, "j%02d-issue-%02d.png" % (jno, issue))
-        pdf = pdf_path(jno, slug, glossy)
+        cov = os.path.join("covers", "j%02d-issue-%02d.png" % (jno, issue))
+        pdf = pdf_path(jno, slug)
         txt = txt_path(jno, slug, issue)
         thumbs.append(
-            '<div class="iss"><a href="%s#page=%d" title="%s · № %02d/10 — открыть PDF (лист 1-2: афиша, лист 2-2: рубрики)">'
+            '<div class="iss"><a href="%s#page=%d" title="%s · № %02d/10 — открыть PDF (лист 1-%d)">'
             '<img src="%s" width="150"></a>'
             '<div class="ino">№%02d/%02d · %s</div>'
             '<div class="it"><a href="%s">PDF</a> · <a href="%s">текст</a> · '
             '<a href="%s">обложка</a></div></div>'
-            % (q(pdf), issue * 2 - 1, name, issue, q(cov), issue, issue, date, q(pdf), q(txt), q(cov)))
+            % (q(pdf), first_page(jno, issue), name, issue, 3 if jno >= 13 else 2, q(cov), issue, issue, date, q(pdf), q(txt), q(cov)))
     pan_kind, pan_text = PANS[(jno + 2) % len(PANS)]
     babai = BABAIS[(jno * 5) % len(BABAIS)]
+    pages = "30 страниц (афиша · события · закулисье)" if jno >= 13 else "20 страниц"
     series_blocks.append(
         '<div class="ser"><h2>%s <small>серия из 10 номеров</small></h2>'
         '<p class="devis">%s</p><div class="row">%s</div>'
         '<div class="note"><span class="ntag">%s · ЗАРИСОВКА 🥘</span> %s</div>'
         '<div class="note"><span class="ntag">БАБАЙ · НАБЛЮДЕНИЕ 👻</span> %s</div>'
-        '<div class="gal"><a href="%s">📥 скачать весь архив: PDF 10 выпусков · 20 страниц</a>'
+        '<div class="gal"><a href="%s">📥 скачать весь архив: PDF 10 выпусков · %s</a>'
         ' · <a href="covers/">папка обложек</a>'
         ' · <a href="journals/">каталог по месяцам</a></div></div>'
-        % (name, slogan, "".join(thumbs), pan_kind, pan_text, babai, q(pdf_path(jno, slug, glossy))))
+        % (name, slogan, "".join(thumbs), pan_kind, pan_text, babai, q(pdf_path(jno, slug)), pages))
+
+N_SERIES = len(series_blocks)
+N_COV = N_SERIES * 10
+N_PAGES = sum(fitz.open(f).page_count for f in glob.glob(os.path.join(BASE, "journals_pdf", "*.pdf")))
 
 html = """<!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Газетный киоск · Ледяной Пресс-Центр · 120 обложек</title>
+<title>Газетный киоск · Ледяной Пресс-Центр · @@N_COV@@ обложек</title>
 <style>
   body { margin:0; font-family:'Segoe UI',system-ui,sans-serif; color:#eaf6ff;
          background:radial-gradient(1200px 700px at 20% -10%, #2b5d8a, #0d1b2a 60%, #071220);
@@ -98,7 +123,7 @@ html = """<!DOCTYPE html>
 </head>
 <body>
 <div class="wrap">
-  <h1>🗞 Газетный киоск 🧊<small>12 серий журналов по 10 номеров — 120 обложек, 240 тщательных листов (афиша + лист рубрик каждый). Открой номер — и он станет историей в следующем году.</small></h1>
+  <h1>🗞 Газетный киоск 🧊<small>@@N_SERIES@@ серий журналов по 10 номеров — @@N_COV@@ обложек и @@N_PAGES@@ тщательных листов: 12 серий по 20 (афиша + лист рубрик), Золотой журнал — 30 листов (афиша + события + закулисье). Открой номер — и он станет историей в следующем году.</small></h1>
   <div class="top">
     <a href="index.html">🎮 Игра</a>
     <a href="press-center.html">📰 Пресс-Центр</a>
@@ -120,5 +145,8 @@ html = """<!DOCTYPE html>
 """
 
 open(os.path.join(BASE, "kiosk.html"), "w", encoding="utf-8").write(
-    html.replace("@@SERIES@@", "".join(series_blocks)))
+    html.replace("@@SERIES@@", "".join(series_blocks))
+        .replace("@@N_SERIES@@", str(N_SERIES))
+        .replace("@@N_COV@@", str(N_COV))
+        .replace("@@N_PAGES@@", str(N_PAGES)))
 print("kiosk.html written:", len(series_blocks), "series")

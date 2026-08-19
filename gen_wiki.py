@@ -21,8 +21,13 @@ PANSK = [
     ("Заметка", "В редакции «Вечного льда» сковорода — корпоративный символ: на ней главред жарит черновики неподписавших колонок."),
     ("Реклама", "СКОВОРОДА «ГЛЯНЕЦ»: позолота по краям, трещины по фактуре. Выпуск лимитированный — 10 штук, как выпусков в серии."),
     ("Рецепт", "Северная волна на сковороде: замеси тесто восходящим потоком, жарь на «Волне» ровно 10 минут — по минуте на номер журнала."),
+    ("Рецепт", "Золотой омлет века: 3 яйца шахтёра №13, золотая крошка льда с крыши Дворца Событий, жарить 10 минут — по минуте на номер Золотой серии."),
 ]
-PAN_ITEMS = PANSK  # по одному на серию; у 1..10 берём свои + добавляем для 11-12
+PAN_ITEMS = PANSK  # по одному на серию до 13 включительно
+
+N_J = len(g.JOURNALS)
+N_ISS = N_J * 10
+N_COV = N_ISS
 
 
 def excerpt(path):
@@ -48,8 +53,15 @@ present_pdfs = set(os.path.basename(p) for p in glob.glob(os.path.join(BASE, "jo
 
 def serie_card(jno):
     name, slug, slogan = g.JOURNALS[jno]
-    glossy = jno >= 11
-    pdf = "journal-%02d-%s-01-10%s.pdf" % (jno, slug, "-glossy" if glossy else "")
+    if jno >= 13:
+        pdf = "journal-%02d-%s-01-10-golden.pdf" % (jno, slug)
+        kind, meta = "золотая серия", "золотой"
+    elif jno >= 11:
+        pdf = "journal-%02d-%s-01-10-glossy.pdf" % (jno, slug)
+        kind, meta = "глянец", "глянец"
+    else:
+        pdf = "journal-%02d-%s-01-10.pdf" % (jno, slug)
+        kind, meta = "обычный", "обычный"
     cv = "covers/j%02d-cover.png" % jno
     themes = " · ".join(THEMES[jno])
     heroes = " · ".join(HEROES[jno])
@@ -59,13 +71,13 @@ def serie_card(jno):
     return ('<div class="sercard">'
             '<div class="serhead"><img src="%s" width="120"><div>'
             '<h3>%s</h3><div class="devis">%s</div></div></div>'
-            '<div class="meta">10 номеров · %s · обложка 120 шт</div>'
+            '<div class="meta">10 номеров · %s · обложка %d шт</div>'
             '<p class="lbl">ТЕМЫ:</p><div class="chips">%s</div>'
             '<p class="lbl">СУДЬБЫ ГЕРОЕВ:</p><div class="chips">%s</div>'
             '<div class="pan"><span class="ptag">%s</span> 🥘 %s</div>'
             '<div class="links">%s · <a href="kiosk.html#ser%d">киоск</a> · <a href="%s">обложка</a></div>'
             '</div>'
-            % (cv, name, slogan, "глянец" if glossy else "обычный", themes, heroes,
+            % (cv, name, slogan, kind, N_COV, themes, heroes,
                pan_type, pan_text, pdf_link, jno, cv))
 
 
@@ -132,8 +144,8 @@ html_page = """<!DOCTYPE html>
   <div class="block">
     <p><b>«Ледяные человечки»</b> — браузерная idling-игра про ледяной лагерь, который тает вместе с вашими решениями.
     Один файл, без сервера: сохраняете вкладку открытой — лагерь живёт, закрываете — история застывает, и про неё пишут журналы.</p>
-    <p>Вокруг игры построен живой пресс-центр: <b>100 статей</b>, <b>12 серий журналов</b> по <b>120 выпусков</b>,
-    <b>120 обложек</b>, рецепты и реклама «Ледяных сковород». Своевременный факт: выпущенные номера никогда не меняют дат —
+    <p>Вокруг игры построен живой пресс-центр: <b>@@N_ART@@ статей</b>, <b>@@N_J@@ серий журналов</b> по <b>@@N_ISS@@ выпусков</b>,
+    <b>@@N_COV@@ обложек</b>, рецепты и реклама «Ледяных сковород». Своевременный факт: выпущенные номера никогда не меняют дат —
     с выходом календаря вперёд старые номера становятся хроникой будущего.</p>
   </div>
 
@@ -150,18 +162,18 @@ html_page = """<!DOCTYPE html>
     <div class="num"><b>время×10 + люди×50</b><div class="n1">счёт</div></div>
   </div>
 
-  <h2>🗞 12 серий журналов</h2>
+  <h2>🗞 @@N_J@@ серий журналов</h2>
   <div class="grid">@@SERIES@@</div>
 
-  <h2>📜 50 статей — анализ игры</h2>
+  <h2>📜 @@N_ART@@ статей — анализ игры</h2>
   <div class="block"><ul class="cols">@@ART_NOW@@</ul></div>
 
-  <h2>🔮 50 статей — прогнозы из будущего</h2>
+  <h2>🔮 @@N_FUT@@ статей — прогнозы из будущего</h2>
   <div class="block"><ul class="cols">@@ART_FUT@@</ul></div>
 
   <footer>
     Игра «Ледяные человечки» · github.com/pop31-ai/ice · «Сковорода — это тоже судьба».
-    Все даты в журналах фиксированы: 2026–2027. После прохождения они остаются историей.
+    Все даты в журналах фиксированы: 2026–2028. После прохождения они остаются историей.
   </footer>
 </div>
 </body>
@@ -169,8 +181,11 @@ html_page = """<!DOCTYPE html>
 """
 
 out = html_page
-out = out.replace("@@SERIES@@", "".join(serie_card(j) for j in range(1, 13)))
+out = out.replace("@@SERIES@@", "".join(serie_card(j) for j in range(1, len(g.JOURNALS) + 1)))
 out = out.replace("@@ART_NOW@@", "\n".join(articles_now))
 out = out.replace("@@ART_FUT@@", "\n".join(articles_future))
+for k, v in {"@@N_ART@@": str(len(articles_now)), "@@N_FUT@@": str(len(articles_future)),
+             "@@N_J@@": str(N_J), "@@N_ISS@@": str(N_ISS), "@@N_COV@@": str(N_COV)}.items():
+    out = out.replace(k, v)
 open(os.path.join(BASE, "wiki-ice.html"), "w", encoding="utf-8").write(out)
 print("wiki-ice.html written; articles:", len(articles_now), "+", len(articles_future))

@@ -145,14 +145,14 @@ def make_situation(jno, slot):
 if __name__ == "__main__":
     n = 0
     for slot in range(len(SITU)):
-        for jno in range(1, 13):
+        for jno in range(1, len(g.JOURNALS) + 1):
             make_situation(jno, slot)
             n += 1
 
     blocks = []
     for slot, (kind, label, desc, tagc) in enumerate(SITU):
         thumbs = []
-        for jno in range(1, 13):
+        for jno in range(1, len(g.JOURNALS) + 1):
             name, slug, slogan = g.JOURNALS[jno]
             p = "situations/%s-%02d.png" % (kind, jno)
             thumbs.append('<div class="iss"><img src="%s" width="150"><div class="ino">%s</div></div>' % (p, name))
@@ -191,7 +191,7 @@ if __name__ == "__main__":
 </head>
 <body>
 <div class="wrap">
-  <h1>🖼 Ситуация — иллюстрация 🧊<small>каждое событие лагеря отвечает картиной: 6 ситуаций × 12 серий = 72 полиарт-зарисовки</small></h1>
+  <h1>🖼 Ситуация — иллюстрация 🧊<small>каждое событие лагеря отвечает картиной: %d ситуаций × %d серий = %d полиарт-зарисовок</small></h1>
   <div class="top">
     <a href="index.html">🎮 Игра</a>
     <a href="press-center.html">📰 Пресс-Центр</a>
@@ -208,5 +208,8 @@ if __name__ == "__main__":
 </html>
 """
     open(os.path.join(BASE, "situations.html"), "w", encoding="utf-8").write(
-        html.replace("@@BLOCKS@@", "".join(blocks)))
+        html.replace("@@BLOCKS@@", "".join(blocks))
+            .replace("%d ситуаций × %d серий = %d полиарт-зарисовок",
+                     "%d ситуаций × %d серий = %d полиарт-зарисовок"
+                     % (len(SITU), len(g.JOURNALS), len(SITU) * len(g.JOURNALS))))
     print("situations: %d images; situations.html written" % n)

@@ -110,6 +110,8 @@ def make_cover(jno, issue):
     c2 = np.array(Image.new("RGB", (1, 1), sky2).getpixel((0, 0)))
     if jno >= 11:
         c1, c2 = np.array([13, 10, 18]), np.array([28, 20, 39])
+    if jno >= 13:
+        c1, c2 = np.array([26, 18, 7]), np.array([46, 34, 12])
     im = polyart_sky(W, H, c1, c2, accent, mid, chip, jno * 97 + issue)
     d = ImageDraw.Draw(im)
 
@@ -153,7 +155,7 @@ def make_cover(jno, issue):
     d.text((30, H - 52), "ИЗ-ПОД КАПОТА · 0.7+0.06·люди/с · шторм ×2.5", font=FB(12),
            fill=accent if jno < 11 else sunc)
     d.text((30, H - 34), "серия «%s» · номер %02d/10 · путь героя: %s" % (name, issue, hero[:44]),
-           font=F(10), fill=chip if jno < 11 else "#b8a2c8")
+           font=F(10), fill=chip if jno < 11 else ("#e6c86a" if jno >= 13 else "#b8a2c8"))
 
     out = os.path.join(COVERS, "j%02d-issue-%02d.png" % (jno, issue))
     im.save(out)
@@ -162,7 +164,7 @@ def make_cover(jno, issue):
 
 if __name__ == "__main__":
     n = 0
-    for j in range(1, 13):
+    for j in range(1, 14):
         for i in range(1, 11):
             make_cover(j, i)
             n += 1

@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
-"""Генерирует press-center.html — витрину репозитория: игра, 100 статей, 12 журналов."""
+"""Генерирует press-center.html — витрину репозитория: игра, статьи, журналы.
+Все числа (журналы, страницы, обложки, месяцы, шаржи) вычисляются из
+реальных файлов, чтобы статистика никогда не расходилась с архивом."""
 import os, glob, urllib.parse
+import fitz
 
 BASE = os.path.dirname(__file__)
 
@@ -9,17 +12,35 @@ def rel(p):
 
 pdfs = sorted(glob.glob(os.path.join(BASE, "journals_pdf", "*.pdf")))
 arts = sorted(glob.glob(os.path.join(BASE, "articles", "*.txt")))
-futs = sorted(glob.glob(os.path.join(BASE, "articles", "future", "*.txt")))
+futs = sorted(a for a in glob.glob(os.path.join(BASE, "articles", "future", "*.txt"))
+              if os.path.basename(a) != "README-future.txt")
+
+N_J = len(pdfs)
+N_ART = len(arts)
+N_FUT = len(futs)
+N_PAGES = sum(fitz.open(f).page_count for f in pdfs)
+N_COV = len(glob.glob(os.path.join(BASE, "covers", "j*-issue-*.png")))
+N_MONTH = len([d for d in sorted(glob.glob(os.path.join(BASE, "journals", "20*")))
+               if glob.glob(os.path.join(d, "*.txt"))])
+try:
+    import gen_pdf_journals as _g
+    N_SERIES = len(_g.JOURNALS)
+except Exception:
+    N_SERIES = N_J
+N_CAR = N_SERIES * 10
+N_SIT = N_SERIES * 6
 
 card = []
 for f in pdfs:
     n = os.path.basename(f)
-    disp = n[:-4].replace("journal-", "№ ").replace("-50", "").replace("-01-10-glossy", " · глянец").replace("-01-10", "").replace("-", " ").replace("  ", " ")
+    disp = n[:-4].replace("journal-", "№ ").replace("-50", "").replace("-01-10-golden", " · золотая серия").replace("-01-10-glossy", " · глянец").replace("-01-10", "").replace("-", " ").replace("  ", " ")
+    pages = 30 if "golden" in n else 20
+    sub = "10 выпусков · %d страниц · %s" % (pages, "золотая серия событий" if "golden" in n else ("глянцевая мода" if "glossy" in n else "из-под капота"))
     card.append(
         '<a class="jc" href="%s" download>\n'
         '  <div class="jcover">📰</div><div class="jname">%s</div>'
-        '  <div class="jsub">10 выпусков · 20 страниц · %s</div></a>'
-        % (rel(os.path.join("journals_pdf", n)), disp, "глянцевая мода" if "glossy" in n else "из-под капота"))
+        '  <div class="jsub">%s</div></a>'
+        % (rel(os.path.join("journals_pdf", n)), disp, sub))
 cards = "\n".join(card)
 
 html = """<!DOCTYPE html>
@@ -27,7 +48,7 @@ html = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ледяной Пресс-Центр · журналы 2026–2027</title>
+<title>Ледяной Пресс-Центр · журналы 2026–2028</title>
 <style>
   * { box-sizing: border-box; }
   body { margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; color: #eaf6ff;
@@ -59,34 +80,34 @@ html = """<!DOCTYPE html>
 <body>
 <div class="wrap">
   <h1>🧊 Ледяной Пресс-Центр
-    <small>газета «Ледяная Вечерка» · 100 статей-анализов · 50 номеров будущего · 12 журналов · 240 страниц · 120 обложек</small>
+    <small>газета «Ледяная Вечерка» · @@N_ART@@ статей-анализов · @@N_FUT@@ @@FUT_WORD@@ будущего · @@N_J@@ журналов · @@N_PAGES@@ страниц · @@N_COV@@ обложек</small>
   </h1>
   <a class="play" href="index.html">🎮 Играть в «Ледяных человечков»</a>
   <div class="topnav">
-    <a href="kiosk.html">🗞 Газетный киоск — 120 обложек</a>
+    <a href="kiosk.html">🗞 Газетный киоск — @@N_COV@@ обложек</a>
     <a href="wiki-ice.html">📖 Энциклопедия Льда — движок, герои, инженерка, Бабай</a>
-    <a href="heroes.html">🎭 Досье героев — 120 шаржей</a>
+    <a href="heroes.html">🎭 Досье героев — @@N_CAR@@ шаржей</a>
     <a href="fun.html">🎪 Забавный уголок</a>
-    <a href="epochs.html">📅 Лента эпох — 21 месяц жизни лагеря</a>
-    <a href="polyart.html">✨ Полиарт-φ — 120 обложек в фирменном стиле</a>
-    <a href="situations.html">🖼 Ситуация — иллюстрация — 72 зарисовки событий</a>
+    <a href="epochs.html">📅 Лента эпох — @@N_MONTH@@ @@MONTH_WORD@@ жизни лагеря</a>
+    <a href="polyart.html">✨ Полиарт-φ — @@N_COV@@ обложек в фирменном стиле</a>
+    <a href="situations.html">🖼 Ситуация — иллюстрация — @@N_SIT@@ зарисовок событий</a>
   </div>
 
   <h2>📰 Журналы (PDF · по 10 выпусков)</h2>
   <div class="grid">@@CARDS@@</div>
 
-  <h2>📄 50 статей-анализов</h2>
+  <h2>📄 @@N_ART@@ статей-анализов</h2>
   <div class="list">
 @@ARTS@@
   </div>
 
-  <h2>🔮 50 статей о будущем («Ледяная Вечерка», номера 001–036)</h2>
+  <h2>🔮 @@N_FUT@@ статей о будущем («Ледяная Вечерка», номера @@FUT_RANGE@@)</h2>
   <div class="list">
 @@FUTS@@
   </div>
 
   <h2>🗓 Архив будущего · каталог по месяцам (журналы/YYYY-MM)</h2>
-  <p class="note">Первые полосы расставлены по месяцам: январь 2026 → сентябрь 2027. Когда месяцы пройдут,
+  <p class="note">Первые полосы расставлены по месяцам: январь 2026 → июль 2028. Когда месяцы пройдут,
   эти номера станут историей, которую вспомнят все.</p>
 
   <footer>Игра «Ледяные человечки» · движок из-под капота: лёд 0.7+0.06·люди/с, шторм ×2.5 на 10с (50–70с),
@@ -100,6 +121,28 @@ html = """<!DOCTYPE html>
 links_art = "\n".join('<a href="%s">%s</a>' % (rel(os.path.join("articles", os.path.basename(a))), os.path.basename(a)) for a in arts)
 links_fut = "\n".join('<a href="%s">%s</a>' % (rel(os.path.join("articles/future", os.path.basename(a))), os.path.basename(a)) for a in futs)
 
-open(os.path.join(BASE, "press-center.html"), "w", encoding="utf-8").write(
-    html.replace("@@CARDS@@", cards).replace("@@ARTS@@", links_art).replace("@@FUTS@@", links_fut))
-print("press-center.html written,", len(pdfs), "pdfs")
+def pl_n(n, one, few, many):
+    if 11 <= n % 100 <= 19:
+        return many
+    m10 = n % 10
+    return one if m10 == 1 else (few if 2 <= m10 <= 4 else many)
+
+MONTH_WORD = pl_n(N_MONTH, "месяц", "месяца", "месяцев")
+FUT_WORD = pl_n(N_FUT, "номер", "номера", "номеров")
+import re
+_fnums = sorted(int(re.search(r"(\d+)", os.path.basename(a)).group(1)) for a in futs)
+FUT_RANGE = "%03d–%03d" % (_fnums[0], _fnums[-1])
+
+toks = {
+    "@@N_ART@@": str(N_ART), "@@N_FUT@@": str(N_FUT), "@@N_J@@": str(N_J),
+    "@@N_PAGES@@": str(N_PAGES), "@@N_COV@@": str(N_COV),
+    "@@N_CAR@@": str(N_CAR), "@@N_SIT@@": str(N_SIT),
+    "@@N_MONTH@@": str(N_MONTH), "@@MONTH_WORD@@": MONTH_WORD,
+    "@@FUT_WORD@@": FUT_WORD, "@@FUT_RANGE@@": FUT_RANGE,
+}
+
+out = html.replace("@@CARDS@@", cards).replace("@@ARTS@@", links_art).replace("@@FUTS@@", links_fut)
+for k, v in toks.items():
+    out = out.replace(k, v)
+open(os.path.join(BASE, "press-center.html"), "w", encoding="utf-8").write(out)
+print("press-center.html written,", len(pdfs), "pdfs,", N_PAGES, "pages")

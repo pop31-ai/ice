@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Генератор heroes.html — «Досье героев»: 120 шаржей по всем номерам,
-арки судеб (HEROES), зарисовки про сковородки рядом с каждой серией."""
+"""Генератор heroes.html — «Досье героев»: шаржи по всем номерам,
+арки судеб (HEROES), зарисовки про сковородки рядом с каждой серией.
+Счётчик шаржей вычисляется из числа серий, чтобы статистика оставалась
+актуальной при добавлении новых журналов."""
 import os
 
 import gen_pdf_journals as g
@@ -10,7 +12,7 @@ from ice_lore import PANS
 BASE = os.path.dirname(__file__)
 
 blocks = []
-for jno in range(1, 13):
+for jno in range(1, len(g.JOURNALS) + 1):
     name, slug, slogan = g.JOURNALS[jno]
     pan_kind, pan_text = PANS[(jno + 5) % len(PANS)]
     cells = []
@@ -31,12 +33,14 @@ for jno in range(1, 13):
         '<div class="note"><span class="ntag">%s · ЗАРИСОВКА 🥘</span> %s</div></div>'
         % (name, slogan, "".join(cells), pan_kind, pan_text))
 
+N_HEROES = len(blocks) * 10
+
 html = """<!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Досье героев · Ледяной Пресс-Центр · 120 шаржей</title>
+<title>Досье героев · Ледяной Пресс-Центр · %d шаржей</title>
 <style>
   body { margin:0; font-family:'Segoe UI',system-ui,sans-serif; color:#eaf6ff;
          background:radial-gradient(1200px 700px at 20% -10%, #2b5d8a, #0d1b2a 60%, #071220);
@@ -65,7 +69,7 @@ html = """<!DOCTYPE html>
 </head>
 <body>
 <div class="wrap">
-  <h1>🎭 Досье героев 🧊<small>120 шаржей серийных героев — по одному на номер каждой серии; арка продолжается в следующем выпуске ★</small></h1>
+  <h1>🎭 Досье героев 🧊<small>%d шаржей серийных героев — по одному на номер каждой серии; арка продолжается в следующем выпуске ★</small></h1>
   <div class="top">
     <a href="index.html">🎮 Игра</a>
     <a href="kiosk.html">🗞 Киоск</a>
@@ -84,5 +88,5 @@ html = """<!DOCTYPE html>
 """
 
 open(os.path.join(BASE, "heroes.html"), "w", encoding="utf-8").write(
-    html.replace("@@SERIES@@", "".join(blocks)))
-print("heroes.html written:", 120, "caricatures")
+    html.replace("@@SERIES@@", "".join(blocks)).replace("%d шаржей", "%d шаржей" % N_HEROES))
+print("heroes.html written:", N_HEROES, "caricatures")

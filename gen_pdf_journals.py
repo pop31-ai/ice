@@ -19,7 +19,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from matplotlib.colors import to_rgb, to_hex
 
-from ice_lore import PANS, BABAIS, EXTRA, ENGINEERING as ENGCALC
+from ice_lore import PANS, BABAIS, EXTRA, ENGINEERING as ENGCALC, GOLD
 
 W, H = A4
 
@@ -48,6 +48,7 @@ JOURNALS = {
     10: ("ГАЛАКТИКА АЙСБЕРГ", "galaktika-aysberg", "ледяные миры планеты и звёзд; космос будущего"),
     11: ("ЛЕДЯНОЙ ГЛЯНЕЦ", "ledyanoy-glyanets", "мода севера: шапки, цвет маны и стиль выживания; глянец из-под капота"),
     12: ("СЕВЕРНАЯ ВОЛНА", "severnaya-volna", "светская хроника льда: балы, тренды, шепоты шторма и звёзды деревни"),
+    13: ("ЗОЛОТОЙ ЖУРНАЛ", "zolotoy-zhurnal", "золотая серия Вечерки: премии года, события месяцев и саги лагеря; 2027-10…2028-07"),
 }
 
 PAL = {
@@ -63,6 +64,7 @@ PAL = {
     10: ("#b6c2ff", "#f0e9ff", "#F5B7B1", "#4A235A", "#6C3483", "#1A0F2E", "#E8DAEF"),
     11: ("#e8dcc8", "#fffdf5", "#D4AF37", "#3a2e1e", "#8a6d3b", "#241a0e", "#FBF3DF"),
     12: ("#f0d9e8", "#fff5fb", "#E8A0BF", "#7b2d5e", "#c26a9c", "#3a1030", "#FDEBF4"),
+    13: ("#f2e6c8", "#fffbe6", "#FFD700", "#6b4e10", "#c9a227", "#241a0e", "#FFF3C4"),
 }
 
 MISTER_FUTURE = [
@@ -116,11 +118,19 @@ def parse_issue(path):
         ("ПАРАЛЛЕЛЬ С ДРУГИМИ ИГРАМИ.", "other"),
         ("КОНКУРС НОМЕРА.", "contest"),
         ("СУДЬБЫ ГЕРОЕВ.", "hero"),
+        ("ГЛАВНОЕ СОБЫТИЕ.", "main_event"),
     ]:
         for ln in txt.splitlines():
             if ln.strip().startswith(label):
                 d[key] = ln.strip()[len(label):].strip()
                 break
+    d["events"] = []
+    for ln in txt.splitlines():
+        s = ln.strip()
+        if s.startswith("СОБЫТИЕ."):
+            ev = s[len("СОБЫТИЕ."):].strip()
+            if ev:
+                d["events"].append(ev)
     head = txt.splitlines()[0:3]
     import re
     m = re.search(r"ВЫПУСК (\d+)/10", txt)
@@ -508,6 +518,37 @@ def scoredonut(jno, issue):
     return path
 
 
+def gold_timeline(jno, issue):
+    """Лента Золотого года (2027-10 … 2028-07): 10 выпусков, текущий подсвечен звездой."""
+    from gen_journal_catalog import GOLD_ISSUES
+    fig, ax, p = _panel(jno, 700, 170)
+    sky1, sky2, sun, accent, mid, dark, chip = p
+    w, h = 700, 170
+    months = ["окт.", "ноя.", "дек.", "янв.", "фев.", "март", "апр.", "май", "июнь", "июль"]
+    xs = np.linspace(w * 0.06, w * 0.94, 10)
+    ax.add_patch(plt.Rectangle((w * 0.02, h * 0.64), w * 0.96, 9, color=mid, alpha=0.45, zorder=2))
+    for i, (x, mo) in enumerate(zip(xs, months)):
+        cur = (i + 1) == issue
+        ax.add_patch(plt.Circle((x, h * 0.685), (18 if cur else 10),
+                                color=sun if cur else mid, zorder=4 + int(cur)))
+        ax.text(x, h * 0.52, str(i + 1), ha="center", fontsize=(13 if cur else 9),
+                color=dark, fontweight="bold", fontname="DejaVu Sans", zorder=6)
+        ax.text(x, h * 0.38, "%s %d" % (mo, 2027 + (i >= 3)), ha="center", fontsize=7.5,
+                color=dark, fontname="DejaVu Sans")
+        head, _ = GOLD_ISSUES[i]
+        ax.text(x, h * 0.22, head[:26] + ("…" if len(head) > 26 else ""), ha="center",
+                fontsize=6, color=chip, fontname="DejaVu Sans")
+        if cur:
+            ax.text(x, h * 0.88, "★", ha="center", fontsize=24, color=sun, zorder=6)
+    ax.text(w * 0.03, h * 0.965, "ЗОЛОТОЙ ГОД · лента выпусков октябрь 2027 → июль 2028",
+            fontsize=9, color="#FFFFFF", fontweight="bold", fontname="DejaVu Sans",
+            bbox=dict(boxstyle="round,pad=0.25", fc=(0.55, 0.45, 0.15, 0.95), ec="none"))
+    ax.set_xlim(0, w); ax.set_ylim(0, h); ax.axis("off")
+    path = os.path.join(IMG, "gold-tl-%02d.png" % issue)
+    fig.savefig(path, dpi=96); plt.close(fig)
+    return path
+
+
 def wrap(text, font, size, width):
     lines, cur = [], ""
     for w in text.split():
@@ -681,6 +722,8 @@ def rubric_page(c, jno, iss, issue, quote, hint, glass=False):
 def build_pdf(jno, issues):
     """Смелая афиша номера: большая обложка, чипы-сводки, крупный график. Минимум текста."""
     name, slug, slogan = JOURNALS[jno]
+    if jno >= 13:
+        return build_golden_pdf(jno, issues)
     if jno >= 11:
         return build_glossy_pdf(jno, issues)
     sky1, sky2, sun, accent, mid, dark, chip = PAL[jno]
@@ -852,6 +895,230 @@ def build_glossy_pdf(jno, issues):
         c.drawCentredString(W / 2, 30, "глянцевый журнал о будущем игры «Ледяные человечки» · всё по статьям «Ледяной Вечерки»")
         c.showPage()
         rubric_page(c, jno, iss, issue, quote, hint, glass=True)
+        c.showPage()
+    c.save()
+    return path
+
+
+def build_golden_pdf(jno, issues):
+    """ЗОЛОТОЙ ЖУРНАЛ: по 3 листа на номер — афиша, события, закулисье."""
+    name, slug, slogan = JOURNALS[jno]
+    sky1, sky2, sun, accent, mid, dark, chip = PAL[jno]
+    path = os.path.join(OUT, "journal-%02d-%s-01-10-golden.pdf" % (jno, slug))
+    c = rlcanvas.Canvas(path, pagesize=A4)
+    d0, d1 = "#241a0e", "#3a2e1e"
+    for idx, iss in enumerate(issues):
+        issue = idx + 1
+        gd = GOLD.get(issue, {})
+        quote, hint = epigraph(jno)
+        car_p = caricature(jno, issue, iss.get("hero", ""))
+        cover_p = os.path.join(BASE, "covers", "j%02d-issue-%02d.png" % (jno, issue))
+        if not os.path.exists(cover_p):
+            cover_p = banner(jno)
+        events = iss.get("events") or [""] * 6
+        # ─────────────── ЛИСТ 1 · АФИША ───────────────
+        c.setFillColor(d0); c.rect(0, 0, W, H, fill=1, stroke=0)
+        c.setFillColor(d1); c.rect(0, H / 2, W, H / 2, fill=1, stroke=0)
+        c.setStrokeColor(sun); c.setLineWidth(1.6); c.rect(12, 12, W - 24, H - 24, fill=0, stroke=1)
+        c.setStrokeColor(sun); c.setLineWidth(0.6); c.rect(18, 18, W - 36, H - 36, fill=0, stroke=1)
+        import random
+        rnd = random.Random(jno * 100 + issue)
+        c.setFillColor(sun)
+        for _ in range(26):
+            c.circle(rnd.randint(30, int(W) - 30), rnd.randint(30, int(H) - 30), 1.0 + rnd.random(), fill=1, stroke=0)
+        # мастхэд
+        c.setFillColor(sun)
+        c.roundRect(30, H - 78, W - 60, 40, 7, fill=1, stroke=0)
+        c.setFont("DejaVu-Bold", 17); c.setFillColor(d0)
+        c.drawCentredString(W / 2, H - 68, "«%s»" % name)
+        c.setFont("DejaVu-Obl", 9); c.setFillColor(sky2)
+        c.drawCentredString(W / 2, H - 86, slogan)
+        # дата
+        c.setFillColor(accent)
+        c.roundRect(30, H - 124, W - 60, 26, 5, fill=1, stroke=0)
+        c.setFont("DejaVu-Bold", 10); c.setFillColor(sky2)
+        c.drawCentredString(W / 2, H - 116, "№ %02d/10 · %s · золотой выпуск года" % (issue, iss.get("date", "")))
+        # тема — плакат
+        c.setFillColor(dark)
+        c.roundRect(30, H - 170, W - 60, 34, 7, fill=1, stroke=0)
+        c.setFont("DejaVu-Bold", 15); c.setFillColor(sky2)
+        c.drawString(48, H - 160, _one(iss.get("title", ""), 46))
+        # обложка слева
+        c.setFillColor("white")
+        c.roundRect(40, 268, 268, 360, 10, fill=1, stroke=0)
+        c.drawImage(cover_p, 44, 272, 260, 352, preserveAspectRatio=True, anchor="c")
+        c.setFillColor(sun)
+        c.setFont("DejaVu-Bold", 8)
+        c.drawCentredString(174, 258, "обложка серии «%s» · полиарт-φ" % name)
+        # главное событие справа
+        xr0, xr1 = 326, W - 34
+        cw = xr1 - xr0
+        c.setFillColor(sun)
+        c.roundRect(xr0, 638, cw, 30, 6, fill=1, stroke=0)
+        c.setFont("DejaVu-Bold", 10); c.setFillColor(d0)
+        c.drawCentredString((xr0 + xr1) / 2, 648, "★ ГЛАВНОЕ СОБЫТИЕ ★")
+        yy = 622
+        me = iss.get("main_event", "")
+        c.setFont("DejaVu-Bold", 9.5); c.setFillColor(sky1)
+        for ln in wrap(me, "DejaVu-Bold", 9.5, cw - 14):
+            c.drawString(xr0 + 7, yy, ln); yy -= 13.5
+        yy -= 12
+        c.setStrokeColor(sun); c.setLineWidth(0.6); c.line(xr0, yy, xr1, yy); yy -= 8
+        # события месяца — нумерованный список
+        for k, ev in enumerate(events[:6]):
+            if not ev:
+                continue
+            c.setFont("DejaVu-Bold", 9); c.setFillColor(sun)
+            c.drawString(xr0, yy, "◆ %d" % (k + 1))
+            c.setFont("DejaVu", 8.4); c.setFillColor(sky2)
+            for j, ln in enumerate(wrap(ev, "DejaVu", 8.4, cw - 44)):
+                if j == 0:
+                    yy2 = yy
+                else:
+                    yy2 = yy - j * 11.5
+                c.drawString(xr0 + 44, yy2, ln)
+            rows = max(1, len(wrap(ev, "DejaVu", 8.4, cw - 44)))
+            yy -= rows * 11.5 + 7
+            if yy < 300:
+                break
+        c.setFont("DejaVu-Obl", 8); c.setFillColor(sky2)
+        c.drawCentredString((xr0 + xr1) / 2, 282, "шесть происшествий месяца — все произошли ровно в эти даты")
+        # график симуляции
+        chart_p = chart(jno, issue)
+        c.setFillColor("white")
+        c.roundRect(30, 106, W - 60, 92, 8, fill=1, stroke=0)
+        c.drawImage(chart_p, 36, 110, W - 72, 84)
+        c.setFont("DejaVu-Obl", 7.5); c.setFillColor(sun)
+        c.drawCentredString(W / 2, 94, "...%s..." % hint)
+        draw_techpass(c, 62, tuple(PAL[jno]))
+        c.setFillColor(sun)
+        c.roundRect(30, 30, W - 60, 24, 5, fill=1, stroke=0)
+        c.setFont("DejaVu", 7); c.setFillColor(d0)
+        c.drawCentredString(W / 2, 38, "серия «%s» · номер %02d/10 · герой: %s …" %
+                            (name, issue, _one(iss.get("hero", ""), 88)))
+        c.showPage()
+
+        # ─────────────── ЛИСТ 2 · СОБЫТИЯ ───────────────
+        c.setFillColor(sky2); c.rect(0, 0, W, H, fill=1, stroke=0)
+        c.setStrokeColor(sun); c.setLineWidth(1.2); c.rect(16, 16, W - 32, H - 32, fill=0, stroke=1)
+        c.setFillColor(sun)
+        c.roundRect(30, H - 68, W - 60, 40, 8, fill=1, stroke=0)
+        c.setFont("DejaVu-Bold", 13); c.setFillColor(d0)
+        c.drawCentredString(W / 2, H - 49, "«%s» · ЛИСТ СОБЫТИЙ" % name)
+        c.setFont("DejaVu", 8); c.setFillColor(dark)
+        c.drawCentredString(W / 2, H - 74, "№ %02d/10 · %s · лента Золотого года" % (issue, iss.get("date", "")))
+        # лента-график
+        tl_p = gold_timeline(jno, issue)
+        c.setFillColor("white")
+        c.roundRect(30, H - 270, W - 60, 150, 8, fill=1, stroke=0)
+        c.drawImage(tl_p, 40, H - 266, W - 80, 142)
+        # карточки событий 2×3 (между лентой и памятным блоком — без наложений)
+        top1, gap, rowh = 444, 8, 112
+        xl, xr, cw2 = 34, 320, 250
+        f1 = _mix(sky2, sun, 0.10)
+        f2 = _mix(sky2, mid, 0.10)
+        for k in range(6):
+            ev = events[k] if k < len(events) else ""
+            col_i, row_i = k % 2, k // 2
+            x = xl if col_i == 0 else xr
+            y = top1 - row_i * (rowh + gap)
+            if y < 160:
+                continue
+            _card(c, x, y, cw2, rowh, "СОБЫТИЕ %d" % (k + 1), ev,
+                  tcol=dark, bcol=dark, border=sun, glass=False, fill=(f1 if col_i == 0 else f2))
+        # память номера
+        c.setFillColor(sun)
+        c.roundRect(30, 150, W - 60, 44, 8, fill=1, stroke=0)
+        c.setFont("DejaVu-Bold", 8); c.setFillColor(d0)
+        c.drawCentredString(W / 2, 174, "★ ПАМЯТЬ ЗОЛОТОГО НОМЕРА ★")
+        c.setFont("DejaVu-Obl", 8.5); c.setFillColor(d0)
+        c.drawCentredString(W / 2, 158, "……%s……" % hint)
+        draw_techpass(c, 116, tuple(PAL[jno]))
+        c.setFont("DejaVu-Obl", 8); c.setFillColor(dark)
+        c.drawCentredString(W / 2, 96, "серия «%s» · № %02d/10 · лист 2/3 · события месяца стали историей"
+                         % (name, issue))
+        c.setStrokeColor(sun); c.setLineWidth(0.6)
+        c.roundRect(34, 60, W - 68, 28, 5, fill=1, stroke=0)
+        c.setFont("DejaVu", 6.8); c.setFillColor(d0)
+        c.drawCentredString(W / 2, 71, "© Ледяная Вечерка · события живут по своим датам · следующее происшествие — в течение 50–70 секунд")
+        c.showPage()
+
+        # ─────────────── ЛИСТ 3 · ЗАКУЛИСЬЕ ───────────────
+        c.setFillColor(sky2); c.rect(0, 0, W, H, fill=1, stroke=0)
+        c.setStrokeColor(sun); c.setLineWidth(1.2); c.rect(16, 16, W - 32, H - 32, fill=0, stroke=1)
+        c.setFillColor(dark)
+        c.roundRect(30, H - 68, W - 60, 40, 8, fill=1, stroke=0)
+        c.setFont("DejaVu-Bold", 13); c.setFillColor(sun)
+        c.drawCentredString(W / 2, H - 49, "«%s» · ЗАКУЛИСЬЕ ЗОЛОТОГО НОМЕРА" % name)
+        c.setFont("DejaVu", 8); c.setFillColor(dark)
+        c.drawCentredString(W / 2, H - 74, "№ %02d/10 · %s · что осталось за афишей" % (issue, iss.get("date", "")))
+        # премия номера
+        pri = gd.get("prize", "Золотая премия номера")
+        c.setFillColor(sun)
+        c.roundRect(30, H - 160, W - 60, 34, 7, fill=1, stroke=0)
+        c.setFont("DejaVu-Bold", 12); c.setFillColor(d0)
+        c.drawCentredString(W / 2, H - 150, "🏆 ПРЕМИЯ НОМЕРА · %s 🏆" % pri)
+        # интервью
+        it = gd.get("interview")
+        x0 = 34
+        cw3 = W - 68
+        f1p = _mix(sky2, sun, 0.10)
+        f2p = _mix(sky2, mid, 0.10)
+        _card(c, 30, H - 330, cw3, 168, "ИНТЕРВЬЮ · %s" % (it[0] if it else "беседа"), "",
+              tcol=dark, bcol=dark, border=sun, glass=False, fill=f1p)
+        yi = H - 196
+        c.setFont("DejaVu-Bold", 8.2); c.setFillColor(dark)
+        for ln in wrap("— " + it[1], "DejaVu-Bold", 8.2, cw3 - 24):
+            if yi < H - 318:
+                break
+            c.drawString(x0 + 12, yi, ln); yi -= 11.8
+        yi -= 5
+        c.setFont("DejaVu-Obl", 8.2); c.setFillColor(mid)
+        for ln in wrap("«" + it[2] + "»", "DejaVu-Obl", 8.2, cw3 - 24):
+            if yi < H - 318:
+                break
+            c.drawString(x0 + 12, yi, ln); yi -= 11.8
+        # рецепт золотой сковороды
+        _card(c, 30, H - 500, cw3, 168, "ЗОЛОТАЯ СКОВОРОДА · рецепт", "", tcol=dark, bcol=dark,
+              border=sun, glass=False, fill=f2p)
+        yr = H - 372
+        c.setFont("DejaVu", 8.2); c.setFillColor(dark)
+        for ln in wrap(gd.get("recipe", "…"), "DejaVu", 8.2, cw3 - 24):
+            if yr < H - 490:
+                break
+            c.drawString(x0 + 12, yr, ln); yr -= 11.8
+        # пятёрка года
+        rating = gd.get("rating", [])
+        c.setFillColor("white")
+        c.roundRect(30, H - 640, cw3 - 190, 110, 8, fill=1, stroke=0)
+        c.setFillColor(sun)
+        c.roundRect(30, H - 640, cw3 - 190, 22, 6, fill=1, stroke=0)
+        c.setFont("DejaVu-Bold", 8.5); c.setFillColor(d0)
+        c.drawCentredString(30 + (cw3 - 190) / 2, H - 632, "★ ПЯТЁРКА ЗОЛОТОГО ГОДА ★")
+        rr = H - 556
+        c.setFont("DejaVu-Obl", 7.8); c.setFillColor(dark)
+        for line in rating[:5]:
+            if rr < H - 636:
+                break
+            c.drawCentredString(30 + (cw3 - 190) / 2, rr, line); rr -= 15.5
+        # шарж героя справа
+        c.setFillColor("white")
+        c.roundRect(W - 196, H - 640, 166, 110, 8, fill=1, stroke=0)
+        c.drawImage(car_p, W - 191, H - 634, 156, 98, preserveAspectRatio=True, anchor="c")
+        c.setFont("DejaVu-Obl", 7); c.setFillColor(dark)
+        c.drawCentredString(W - 113, H - 650, "герой номера")
+        # письмо редактора
+        c.setFont("DejaVu-Obl", 8); c.setFillColor(dark)
+        c.drawCentredString(W / 2, H - 668, "Письмо редактора: «Золотой год — это год, который читает сам себя».")
+        draw_techpass(c, H - 700, tuple(PAL[jno]))
+        c.setFont("DejaVu-Obl", 8); c.setFillColor(dark)
+        c.drawCentredString(W / 2, H - 712, "серия «%s» · № %02d/10 · лист 3/3 · закулисье печатается после афиши и событий"
+                         % (name, issue))
+        c.setFillColor(sun)
+        c.roundRect(34, 40, W - 68, 26, 5, fill=1, stroke=0)
+        c.setFillColor(sun)
+        c.setFont("DejaVu", 6.8); c.setFillColor(d0)
+        c.drawCentredString(W / 2, 50, "© Ледяная Вечерка · премия, рецепт и пятёрка года — только в Золотом журнале")
         c.showPage()
     c.save()
     return path
