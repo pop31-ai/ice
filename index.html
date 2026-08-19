@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ледяные человечки</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: linear-gradient(180deg, #1c3a5e 0%, #2b5d8a 45%, #16324f 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #eaf6ff;
+    padding: 16px;
+    user-select: none;
+  }
+  .game {
+    background: rgba(0,0,0,0.28);
+    border-radius: 20px;
+    padding: 18px;
+    max-width: 940px;
+    width: 100%;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.55);
+  }
+  h1 { font-size: 26px; letter-spacing: 1px; }
+  .subtitle { font-size: 13px; opacity: 0.8; margin-bottom: 12px; }
+
+  .hud {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .chip {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 12px;
+    padding: 8px 12px;
+  }
+  .chip .label { font-size: 11px; opacity: 0.75; margin-bottom: 4px; }
+  .bar { height: 12px; border-radius: 6px; background: rgba(0,0,0,0.35); overflow: hidden; position: relative; }
+  .fill { height: 100%; border-radius: 6px; transition: width 0.1s linear; }
+  #iceFill { background: linear-gradient(90deg, #7fd4ff, #eaffff); }
+  #manaFill { background: linear-gradient(90deg, #8a6bff, #c7b6ff); }
+  .statrow { display: flex; justify-content: space-between; align-items: center; font-size: 14px; font-weight: 600; margin-top: 5px; }
+  .statrow .sub { font-size: 11px; opacity: 0.7; font-weight: 400; }
+
+  canvas {
+    width: 100%;
+    max-width: 900px;
+    aspect-ratio: 900 / 600;
+    border-radius: 14px;
+    display: block;
+    margin: 0 auto;
+    cursor: pointer;
+    touch-action: none;
+    box-shadow: inset 0 0 60px rgba(0,0,0,0.25);
+  }
+
+  .hint { font-size: 12px; opacity: 0.85; text-align: center; margin-top: 10px; line-height: 1.5; }
+  .hint b { color: #9fe0ff; }
+
+  #overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(8, 20, 35, 0.78);
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+  }
+  #overlay.show { display: flex; }
+  .panel {
+    background: rgba(20, 42, 68, 0.95);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 18px;
+    padding: 28px 36px;
+    text-align: center;
+    max-width: 360px;
+    box-shadow: 0 16px 50px rgba(0,0,0,0.6);
+  }
+  .panel h2 { font-size: 24px; margin-bottom: 8px; }
+  .panel p { opacity: 0.85; margin-bottom: 6px; font-size: 14px; }
+  .panel .score { font-size: 30px; font-weight: 800; color: #9fe0ff; margin: 10px 0; }
+  .btn {
+    margin-top: 12px;
+    background: linear-gradient(180deg, #4aa8e0, #2f7fc0);
+    border: none;
+    color: white;
+    font-size: 16px;
+    font-weight: 700;
+    padding: 12px 28px;
+    border-radius: 12px;
+    cursor: pointer;
+  }
+  .btn:hover { filter: brightness(1.1); }
+</style>
+</head>
+<body>
+  <div class="game">
+    <h1>🧊 Ледяные человечки</h1>
+    <div class="subtitle">Выживание на тающем айсберге</div>
+
+    <div class="hud">
+      <div class="chip">
+        <div class="label">Айсберг</div>
+        <div class="bar"><div class="fill" id="iceFill" style="width:100%"></div></div>
+        <div class="statrow"><span>🧊 <span id="iceTxt">100</span>%</span><span class="sub" id="meltTxt">таяние 0.9/с</span></div>
+      </div>
+      <div class="chip">
+        <div class="label">Мана шамана</div>
+        <div class="bar"><div class="fill" id="manaFill" style="width:100%"></div></div>
+        <div class="statrow"><span>🔮 <span id="manaTxt">100</span></span><span class="sub">клик по льду −3</span></div>
+      </div>
+      <div class="chip">
+        <div class="label">Рыба</div>
+        <div class="bar"><div class="fill" id="fishFill" style="width:16%"></div></div>
+        <div class="statrow"><span>🐟 <span id="fishTxt">40</span>/250</span><span class="sub">клик по воде +6</span></div>
+      </div>
+    </div>
+
+    <div class="hud" style="grid-template-columns: repeat(4, 1fr);">
+      <div class="chip"><div class="label">Люди</div><div class="statrow">👥 <span id="popTxt">4</span><span class="sub">/12</span></div></div>
+      <div class="chip"><div class="label">Время</div><div class="statrow">⏱ <span id="timeTxt">0</span><span class="sub">сек</span></div></div>
+      <div class="chip"><div class="label">Очки</div><div class="statrow">⭐ <span id="scoreTxt">0</span></div></div>
+      <div class="chip"><div class="label">Рекорд</div><div class="statrow">🏆 <span id="bestTxt">0</span></div></div>
+    </div>
+
+    <canvas id="cv" width="900" height="600"></canvas>
+
+    <div class="hint">
+      <b>Клик по льду</b> — морозный заряд (+🧊, тратит 🔮). <b>Клик по воде</b> — ловля рыбы (+🐟).
+      Рыба кормит людей, они родятся при запасе ≥25. Люди ускоряют таяние — не дай айсбергу растаять!
+    </div>
+  </div>
+
+  <div id="overlay">
+    <div class="panel">
+      <h2 id="overTitle">Айсберг растаял</h2>
+      <p id="overDesc">Человечки утонули в ледяной воде…</p>
+      <div class="score">⭐ <span id="finalScore">0</span></div>
+      <p>Выживание: <b id="finalTime">0</b> сек · Люди: <b id="finalPop">0</b></p>
+      <button class="btn" id="restartBtn">Играть снова</button>
+    </div>
+  </div>
+
+<script>
+(function () {
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const CW = 900, CH = 600;
+
+  const waterY = 410;
+  const cx = CW / 2;
+  const MAX_POP = 12;
+  const highKey = 'iceberg-people-best';
+
+  const MAN_COLORS = ['#4aa8e0', '#e85d5d', '#5fd08a', '#f5b83d', '#b07ae0', '#45c6b5', '#f08a5d', '#ff6b81'];
+  const HAT_COLORS = ['#e85d5d', '#f5b83d', '#5fd08a', '#4aa8e0', '#ff6b81', '#b07ae0'];
+
+  const S = {
+    ice: 100, mana: 100, fish: 40, pop: 4,
+    time: 0, over: false, high: 0,
+    birthTimer: 0, starveTimer: 0, fishCd: 0,
+    storm: null, stormTimer: 55, ambTimer: 2,
+    men: [], parts: [], texts: [], splashes: []
+  };
+
+  const el = (id) => document.getElementById(id);
+  const iceFill = el('iceFill'), iceTxt = el('iceTxt'), meltTxt = el('meltTxt');
+  const manaFill = el('manaFill'), manaTxt = el('manaTxt');
+  const fishFill = el('fishFill'), fishTxt = el('fishTxt');
+  const popTxt = el('popTxt'), timeTxt = el('timeTxt'), scoreTxt = el('scoreTxt'), bestTxt = el('bestTxt');
+
+  try { S.high = +localStorage.getItem(highKey) || 0; } catch (e) {}
+
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const dims = () => ({ w: 120 + S.ice * 2.6, h: 24 + S.ice * 1.5 });
+
+  function spawnMan(announce) {
+    const d = dims();
+    const m = {
+      x: cx + (Math.random() * 2 - 1) * (d.w / 2 - 24),
+      speed: 10 + Math.random() * 12,
+      dir: Math.random() < 0.5 ? -1 : 1,
+      c: MAN_COLORS[Math.floor(Math.random() * MAN_COLORS.length)],
+      hat: HAT_COLORS[Math.floor(Math.random() * HAT_COLORS.length)],
+      fishT: Math.random() * 3
+    };
+    S.men.push(m);
+  }
+
+  function removeMan() {
+    if (S.men.length > 0) S.men.splice(Math.floor(Math.random() * S.men.length), 1);
+  }
+
+  function addText(x, y, txt) {
+    S.texts.push({ x, y, txt, life: 1.2 });
+  }
+
+  function addPart(x, y, vy) {
+    S.parts.push({ x: x + (Math.random() * 20 - 10), y, vx: Math.random() * 20 - 10, vy: vy || -30 - Math.random() * 30, life: 0.7, r: 2 + Math.random() * 3 });
+  }
+
+  function spawnSplash(x, y, fish) {
+    S.splashes.push({ x, y, life: 0.8, fish });
+  }
+
+  function doFrost(x, y) {
+    if (S.mana < 3) {
+      addText(x, y, 'нет маны');
+      return;
+    }
+    S.mana -= 3;
+    S.ice = clamp(S.ice + 2.5, 0, 100);
+    for (let i = 0; i < 8; i++) addPart(x, y);
+  }
+
+  function doFish(x, y) {
+    if (S.fishCd > 0) return;
+    S.fishCd = 0.4;
+    S.fish = clamp(S.fish + 6, 0, 250);
+    spawnSplash(x, Math.max(y, waterY + 4), true);
+    addText(x, Math.max(y, waterY + 4) - 20, '+6 🐟');
+  }
+
+  function gameOver(reason) {
+    S.over = true;
+    const score = Math.floor(S.time * 10) + S.pop * 50;
+    if (score > S.high) {
+      S.high = score;
+      try { localStorage.setItem(highKey, S.high); } catch (e) {}
+    }
+    el('overTitle').textContent = reason === 'pop' ? 'Все человечки погибли' : 'Айсберг растаял';
+    el('overDesc').textContent = reason === 'pop' ? 'Рыба закончилась, и голод погубил племя…' : 'Ледяной остров ушёл под воду вместе с племенем…';
+    el('finalScore').textContent = score;
+    el('finalTime').textContent = Math.floor(S.time);
+    el('finalPop').textContent = S.pop;
+    el('overlay').classList.add('show');
+  }
+
+  function restart() {
+    Object.assign(S, {
+      ice: 100, mana: 100, fish: 40, pop: 4, time: 0, over: false,
+      birthTimer: 0, starveTimer: 0, fishCd: 0,
+      storm: null, stormTimer: 55, ambTimer: 2,
+      men: [], parts: [], texts: [], splashes: []
+    });
+    for (let i = 0; i < 4; i++) spawnMan();
+    el('overlay').classList.remove('show');
+  }
+
+  cv.addEventListener('pointerdown', (e) => {
+    if (S.over) return;
+    const rect = cv.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (CW / rect.width);
+    const y = (e.clientY - rect.top) * (CH / rect.height);
+    const d = dims();
+    const topY = waterY - d.h;
+    const onIce = y >= topY - 8 && y <= waterY && x >= cx - d.w / 2 && x <= cx + d.w / 2;
+    if (onIce) doFrost(x, y);
+    else if (y > waterY - 8) doFish(x, y);
+  });
+
+  el('restartBtn').addEventListener('click', restart);
+
+  function update(dt) {
+    if (S.over) return;
+    S.time += dt;
+
+    let melt = 0.7 + 0.06 * S.pop;
+    if (S.storm) { melt *= 2.5; S.storm.t -= dt; if (S.storm.t <= 0) S.storm = null; }
+    S.ice = Math.max(0, S.ice - melt * dt);
+    S.mana = Math.min(100, S.mana + 8 * dt);
+    S.fish = clamp(S.fish + (S.pop * 0.6 - S.pop * 0.9) * dt, 0, 250);
+    S.fishCd = Math.max(0, S.fishCd - dt);
+
+    if (S.pop < MAX_POP && S.fish >= 25) {
+      S.birthTimer += dt;
+      if (S.birthTimer >= 6) { S.pop++; S.fish -= 15; S.birthTimer = 0; spawnMan(); addText(cx, waterY - 40, '+ человечек 👶'); }
+    } else S.birthTimer = 0;
+
+    if (S.fish <= 0) {
+      S.starveTimer += dt;
+      if (S.starveTimer >= 3) {
+        S.pop--;
+        removeMan();
+        S.starveTimer = 2.0;
+        addText(cx, waterY - 40, '💀 голод!');
+        if (S.pop <= 0) gameOver('pop');
+      }
+    } else S.starveTimer = 0;
+
+    S.stormTimer -= dt;
+    if (S.stormTimer <= 0 && !S.storm) {
+      S.storm = { t: 10 };
+      S.stormTimer = 50 + Math.random() * 20;
+      addText(cx, 120, '🌩 Шторм! Таяние усилено!');
+    }
+
+    const d = dims();
+    const minX = cx - d.w / 2 + 14, maxX = cx + d.w / 2 - 14;
+    for (const m of S.men) {
+      m.x += m.speed * m.dir * dt;
+      if (m.x < minX || m.x > maxX) m.dir *= -1;
+      m.x = clamp(m.x, minX, maxX);
+    }
+
+    for (const p of S.parts) { p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 20 * dt; }
+    S.parts = S.parts.filter(p => p.life > 0);
+    for (const t of S.texts) { t.life -= dt; t.y -= 18 * dt; }
+    S.texts = S.texts.filter(t => t.life > 0);
+    for (const s of S.splashes) s.life -= dt;
+    S.splashes = S.splashes.filter(s => s.life > 0);
+
+    S.ambTimer -= dt;
+    if (S.ambTimer <= 0) {
+      S.ambTimer = 1.5 + Math.random() * 2;
+      spawnSplash(cx + (Math.random() * 2 - 1) * 300, waterY + 8, false);
+    }
+
+    if (S.ice <= 0) gameOver('ice');
+    updateHud();
+  }
+
+  function updateHud() {
+    iceFill.style.width = S.ice + '%';
+    iceTxt.textContent = Math.floor(S.ice);
+    const melt = 0.7 + 0.06 * S.pop;
+    meltTxt.textContent = 'таяние ' + (S.storm ? (melt * 2.5).toFixed(1) : melt.toFixed(1)) + '/с';
+    manaFill.style.width = S.mana + '%';
+    manaTxt.textContent = Math.floor(S.mana);
+    fishFill.style.width = (S.fish / 250 * 100) + '%';
+    fishTxt.textContent = Math.floor(S.fish);
+    popTxt.textContent = S.pop;
+    timeTxt.textContent = Math.floor(S.time);
+    scoreTxt.textContent = Math.floor(S.time * 10) + S.pop * 50;
+    bestTxt.textContent = S.high;
+  }
+
+  function drawMan(m, topY) {
+    const x = m.x, y = topY;
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = m.c;
+    ctx.beginPath();
+    ctx.moveTo(x, y); ctx.lineTo(x - 2, y - 5);
+    ctx.moveTo(x, y); ctx.lineTo(x + 2, y - 5);
+    ctx.moveTo(x, y - 5); ctx.lineTo(x, y - 11);
+    ctx.moveTo(x, y - 9); ctx.lineTo(x - 3, y - 12);
+    ctx.moveTo(x, y - 9); ctx.lineTo(x + 3, y - 12);
+    ctx.stroke();
+    ctx.fillStyle = '#ffe9c9';
+    ctx.beginPath(); ctx.arc(x, y - 14, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = m.hat;
+    ctx.beginPath();
+    ctx.moveTo(x - 4, y - 15); ctx.lineTo(x + 4, y - 15); ctx.lineTo(x + 2, y - 20); ctx.lineTo(x - 2, y - 20);
+    ctx.closePath(); ctx.fill();
+  }
+
+  function render(t) {
+    ctx.clearRect(0, 0, CW, CH);
+
+    const sky = ctx.createLinearGradient(0, 0, 0, waterY);
+    sky.addColorStop(0, '#bde7ff');
+    sky.addColorStop(1, '#dff3ff');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, CW, waterY);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.65)';
+    ctx.beginPath(); ctx.arc(720, 90, 34, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,244,214,0.9)';
+    ctx.beginPath(); ctx.arc(724, 84, 26, 0, Math.PI * 2); ctx.fill();
+
+    for (const [ix, w, h, x] of [[150, 120, 60, 140], [90, 80, 40, 760]]) {
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      const top = waterY - h;
+      ctx.beginPath();
+      ctx.moveTo(x - w / 2, waterY);
+      ctx.lineTo(x - w / 4, top);
+      ctx.lineTo(x + w / 4, top);
+      ctx.lineTo(x + w / 2, waterY);
+      ctx.closePath(); ctx.fill();
+    }
+
+    const waveSpeed = S.storm ? 6 : 2;
+    const wg = ctx.createLinearGradient(0, waterY, 0, CH);
+    wg.addColorStop(0, '#2e7fb5');
+    wg.addColorStop(1, '#0d3d66');
+    ctx.fillStyle = wg;
+    ctx.fillRect(0, waterY, CW, CH - waterY);
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+    ctx.lineWidth = 1.5;
+    for (let k = 0; k < 3; k++) {
+      ctx.beginPath();
+      for (let x = 0; x <= CW; x += 10) {
+        const yy = waterY + 16 + k * 20 + Math.sin(x * 0.05 + t * waveSpeed + k * 1.7) * 3;
+        if (x === 0) ctx.moveTo(x, yy); else ctx.lineTo(x, yy);
+      }
+      ctx.stroke();
+    }
+
+    const d = dims();
+    const topY = waterY - d.h;
+    const half = d.w / 2;
+    const meltFrac = S.ice / 100;
+
+    ctx.beginPath();
+    ctx.moveTo(cx - half, topY);
+    ctx.lineTo(cx + half, topY);
+    ctx.lineTo(cx + half * 0.78, waterY);
+    ctx.lineTo(cx + half * 0.4, waterY + 10);
+    ctx.lineTo(cx, waterY);
+    ctx.lineTo(cx - half * 0.45, waterY + 12);
+    ctx.lineTo(cx - half * 0.78, waterY);
+    ctx.closePath();
+
+    const ig = ctx.createLinearGradient(0, topY, 0, waterY);
+    ig.addColorStop(0, '#ffffff');
+    ig.addColorStop(0.5, '#d9f1ff');
+    ig.addColorStop(1, '#9ecff0');
+    ctx.fillStyle = ig;
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(120,180,220,0.6)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(90,160,220,0.35)';
+    ctx.beginPath();
+    ctx.moveTo(cx - half * 0.78, waterY);
+    ctx.lineTo(cx + half * 0.78, waterY);
+    ctx.lineTo(cx + half * 0.62, waterY + 55);
+    ctx.lineTo(cx - half * 0.62, waterY + 55);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(120,180,220,0.35)';
+    ctx.stroke();
+
+    for (const m of S.men) drawMan(m, topY);
+
+    for (const p of S.parts) {
+      const a = p.life / 0.7;
+      ctx.fillStyle = 'rgba(174,231,255,' + a + ')';
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+    }
+
+    for (const s of S.splashes) {
+      const a = s.life / 0.8;
+      ctx.strokeStyle = 'rgba(255,255,255,' + a * 0.8 + ')';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(s.x, s.y, (1 - a) * 22 + 4, 0, Math.PI * 2); ctx.stroke();
+      if (s.fish) {
+        ctx.fillStyle = 'rgba(255,244,180,' + a + ')';
+        ctx.beginPath();
+        ctx.ellipse(s.x, s.y - (1 - a) * 26 - 6, 7, 4, -0.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    if (S.storm) {
+      ctx.fillStyle = 'rgba(20,40,70,0.28)';
+      ctx.fillRect(0, 0, CW, CH);
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      for (let i = 0; i < 10; i++) {
+        const sx = ((t * (60 + i * 13) + i * 400) % 1100) - 100;
+        const sy = (i * 61) % CH;
+        ctx.fillRect(sx, sy, 3 + (i % 3), 2 + (i % 2));
+      }
+    }
+
+    for (const txt of S.texts) {
+      const a = txt.life / 1.2;
+      ctx.font = 'bold 15px Segoe UI, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.globalAlpha = a;
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+      ctx.lineWidth = 3;
+      ctx.strokeText(txt.txt, txt.x, txt.y);
+      ctx.fillText(txt.txt, txt.x, txt.y);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function loop(ts) {
+    const dt = Math.min(0.05, (ts - (S._last || ts)) / 1000);
+    S._last = ts;
+    update(dt);
+    render(ts / 1000);
+    requestAnimationFrame(loop);
+  }
+
+  for (let i = 0; i < 4; i++) spawnMan();
+  updateHud();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
