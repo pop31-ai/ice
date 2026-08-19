@@ -74,6 +74,7 @@ html = """<!DOCTYPE html>
     <a href="fun.html">🎪 Забавный уголок</a>
     <a href="epochs.html">📅 Лента эпох</a>
     <a href="polyart.html">✨ Полиарт-φ</a>
+    <a href="situations.html">🖼 Ситуации</a>
   </div>
   @@SERIES@@
   <footer>Игра «Ледяные человечки» · github.com/pop31-ai/ice · каждый шарж — это судьба, а каждая судьба — это зарисовка.</footer>

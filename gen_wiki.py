@@ -124,6 +124,7 @@ html_page = """<!DOCTYPE html>
     <a href="fun.html">🎪 Забавный уголок</a>
     <a href="epochs.html">📅 Лента эпох</a>
     <a href="polyart.html">✨ Полиарт-φ</a>
+    <a href="situations.html">🖼 Ситуации</a>
     <a href="README.md">💾 README</a>
   </div>
 

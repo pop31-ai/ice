@@ -135,6 +135,7 @@ html = """<!DOCTYPE html>
     <a href="press-center.html">📰 Пресс-Центр</a>
     <a href="epochs.html">📅 Лента эпох</a>
     <a href="polyart.html">✨ Полиарт-φ</a>
+    <a href="situations.html">🖼 Ситуации</a>
   </div>
   @@HOR@@
   @@RID@@

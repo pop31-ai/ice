@@ -84,6 +84,7 @@ html = """<!DOCTYPE html>
     <a href="heroes.html">🎭 Досье героев</a>
     <a href="fun.html">🎪 Забавный уголок</a>
     <a href="epochs.html">📅 Лента эпох</a>
+    <a href="situations.html">🖼 Ситуации</a>
   </div>
 
   <div class="manifest">
