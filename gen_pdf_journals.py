@@ -17,6 +17,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas as rlcanvas
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from matplotlib.colors import to_rgb, to_hex
 
 from ice_lore import PANS, BABAIS, EXTRA, ENGINEERING as ENGCALC
 
@@ -583,24 +584,29 @@ def _one(text, n):
     return text[:n].rsplit(" ", 1)[0] + "…" if len(text) > n else text
 
 
-def _card(c, x, y, w, h, title, body, tcol, bcol, border, glass=False):
+def _mix(c1, c2, t):
+    a, b = to_rgb(c1), to_rgb(c2)
+    return to_hex([(1 - t) * x + t * y for x, y in zip(a, b)])
+
+
+def _card(c, x, y, w, h, title, body, tcol, bcol, border, glass=False, fill=None):
     """Рубриковая карточка: подложка, заголовок-плашка, обёрнутый текст."""
     if glass:
         c.setFillColor("#17101f"); c.setStrokeColor(border)
     else:
-        c.setFillColor("#FFFFFF"); c.setStrokeColor(border)
+        c.setFillColor(fill if fill else "#FFFFFF"); c.setStrokeColor(border)
     c.roundRect(x, y, w, h, 8, fill=1, stroke=1)
     c.setFillColor(tcol)
     c.roundRect(x + 3, y + h - 18, w - 6, 15, 5, fill=1, stroke=0)
     c.setFont("DejaVu-Bold", 7); c.setFillColor("#FFFFFF")
     c.drawCentredString(x + w / 2, y + h - 14.5, title)
-    c.setFont("DejaVu", 8); c.setFillColor(bcol)
-    yy = y + h - 30
-    for ln in wrap(body, "DejaVu", 8, w - 24):
+    c.setFont("DejaVu", 8.4); c.setFillColor(bcol)
+    yy = y + h - 32
+    for ln in wrap(body, "DejaVu", 8.4, w - 22):
         if yy < y + 8:
             break
-        c.drawString(x + 12, yy, ln)
-        yy -= 11.4
+        c.drawString(x + 11, yy, ln)
+        yy -= 12.2
 
 
 def rubric_page(c, jno, iss, issue, quote, hint, glass=False):
@@ -621,31 +627,55 @@ def rubric_page(c, jno, iss, issue, quote, hint, glass=False):
     c.setFont("DejaVu-Obl", 8); c.setFillColor(ink)
     c.drawCentredString(W / 2, H - 74, "№ %02d/10 · %s · вторая страница номера — как в настоящих газетах"
                      % (issue, iss.get("date", "")))
-    # рубрики
+    # рубрики — плотная сетка 2x2 на всю высоту страницы
     eng_title, eng_body = ENGCALC[(issue - 1) % len(ENGCALC)]
     pan_kind, pan_text = PANS[(jno + issue) % len(PANS)]
     babai = BABAIS[(jno * 3 + issue) % len(BABAIS)]
     extra = EXTRA[(jno + issue * 2) % len(EXTRA)]
-    tcol_l, tcol_r = mid, accent
-    _card(c, 34, H - 300, 262, 178, "ПРОГНОЗ · ИНЖЕНЕРНЫЕ ВЫКЛАДКИ",
-          "Расчёт: " + eng_title + ". " + eng_body, tcol_l, ink, frame_col, glass)
-    _card(c, 34, 96, 262, 168, "КАНЦЕЛЯРИЯ · ПРОЧЕЕ",
-          extra + " Учётная строка: «" + _one(iss.get("refl", ""), 90) + "»",
-          tcol_l, ink, frame_col, glass)
-    # правая колонка
-    _card(c, 310, H - 300, 262, 178, "СКОВОРОДНИК · %s" % pan_kind,
-          pan_text + " Зарисовка на полях: сковорода — тоже судьба.",
-          tcol_r, ink, frame_col, glass)
-    _card(c, 310, 96, 262, 168, "БАБАЙ · НАБЛЮДЕНИЯ",
-          babai + " Записано дежурным по лагерю, подписано неразборчиво.",
-          tcol_r, ink, frame_col, glass)
-    # нижняя полоса: техпаспорт + тайная строка
-    draw_techpass(c, 74, tuple(PAL[jno]))
+    blue, gold = mid, accent
+    top1, gap, rowh = H - 150, 16, 210
+    xl, xr, cw = 34, 310, 262
+    if glass:
+        f1 = f2 = None
+    else:
+        f1 = _mix(base, accent, 0.10)
+        f2 = _mix(base, mid, 0.10)
+    _card(c, xl, top1 - rowh, cw, rowh, "ПРОГНОЗ · ИНЖЕНЕРНЫЕ ВЫКЛАДКИ",
+          "Расчёт — " + eng_title + ". " + eng_body +
+          " Цифры проверены редакцией и съедены в виде омлета по-ледянски. "
+          "Любой показатель можно пересчитать: калькулятор прилагается к чаю.",
+          blue, ink, frame_col, glass, fill=f1)
+    _card(c, xr, top1 - rowh, cw, rowh, "СКОВОРОДНИК · %s" % pan_kind,
+          pan_text + " На полях зарисовка: сковорода — тоже судьба. "
+          "Инструкция к ней: жарить с уважением к льду, переворачивать на закате, "
+          "мыть талой водой и не давать Бабаю.",
+          gold, ink, frame_col, glass, fill=f2)
+    bot = top1 - gap - rowh
+    _card(c, xl, bot, cw, rowh, "БАБАЙ · НАБЛЮДЕНИЯ",
+          babai + " Записано дежурным по лагерю, подписано неразборчиво, "
+          "перечитано вслух при свече изо льда. Свидетелей было трое: все считают иначе. "
+          "В архив сдан оригинал, в киоск — иллюстрация.",
+          gold, ink, frame_col, glass, fill=f2)
+    _card(c, xr, bot, cw, rowh, "КАНЦЕЛЯРИЯ · ПРОЧЕЕ",
+          extra + " Учётная строка: «" + _one(iss.get("refl", ""), 96) + "». "
+          "Второй экземпляр сдан в архив Вечерки; третий — засушен между страницами 120-го номера.",
+          blue, ink, frame_col, glass, fill=f1)
+    # широкая нижняя полоса с тайной строкой
+    c.setFillColor(bar)
+    c.roundRect(30, 226, W - 60, 46, 8, fill=1, stroke=0)
+    c.setFont("DejaVu-Bold", 8); c.setFillColor("#FFFFFF")
+    c.drawCentredString(W / 2, 258, "★ ПАМЯТЬ НОМЕРА ★")
+    c.setFont("DejaVu-Obl", 8.5); c.setFillColor("#FFFFFF")
+    c.drawCentredString(W / 2, 240, "……" + hint + "……")
+    # техпаспорт
+    draw_techpass(c, 176, tuple(PAL[jno]))
     c.setFont("DejaVu-Obl", 7.5); c.setFillColor(ink)
-    c.drawCentredString(W / 2, 46, "……" + hint + "……")
-    c.setFont("DejaVu", 6.6); c.setFillColor(ink)
-    c.drawCentredString(W / 2, 26, "серия «%s» · № %02d/10 · лист 2/2 · всё по статьям «Ледяной Вечерки»"
-                     % (name, issue))
+    c.drawCentredString(W / 2, 146, "серия «%s» · № %02d/10 · лист 2/2 · иллюстрации — полиарт" % (name, issue))
+    # орнамент внизу + подвал
+    c.setFillColor(frame_col)
+    c.roundRect(34, 60, W - 68, 30, 5, fill=1, stroke=0)
+    c.setFont("DejaVu", 6.6); c.setFillColor("#FFFFFF")
+    c.drawCentredString(W / 2, 74, "© Ледяная Вечерка · все выпуски живут по своим датам · сковородка печатается по понедельникам")
 
 
 def build_pdf(jno, issues):
@@ -672,24 +702,24 @@ def build_pdf(jno, issues):
         c.setFillColor("#FFFFFF")
         for _ in range(40):
             c.circle(rnd.randint(20, int(W) - 20), rnd.randint(30, int(H) - 90), 1.2 + rnd.random() * 1.2, fill=1, stroke=0)
-        # мастхэд
+        # мастхэд (полоса с названием и слоганом)
         c.setFillColor(accent)
-        c.roundRect(30, H - 78, W - 60, 44, 8, fill=1, stroke=0)
-        c.setFont("DejaVu-Bold", 15); c.setFillColor("#FFFFFF")
-        c.drawCentredString(W / 2, H - 66, "«%s»" % name)
+        c.roundRect(30, H - 84, W - 60, 56, 8, fill=1, stroke=0)
+        c.setFont("DejaVu-Bold", 16); c.setFillColor("#FFFFFF")
+        c.drawCentredString(W / 2, H - 52, "«%s»" % name)
         c.setFont("DejaVu-Obl", 8.5); c.setFillColor(sky2)
-        c.drawCentredString(W / 2, H - 84, slogan)
-        # дата — плашка справа
+        c.drawCentredString(W / 2, H - 70, slogan)
+        # дата — плашка под мастхэдом
         c.setFillColor(mid)
-        c.roundRect(W - 215, H - 122, 185, 22, 5, fill=1, stroke=0)
+        c.roundRect(30, H - 134, W - 60, 20, 5, fill=1, stroke=0)
         c.setFont("DejaVu", 9); c.setFillColor("#FFFFFF")
-        c.drawCentredString(W - 122.5, H - 116, iss.get("date", "") + " · № %02d/10" % issue)
-        # заголовок-плакат
+        c.drawCentredString(W / 2, H - 128, iss.get("date", "") + " · № %02d/10" % issue)
+        # заголовок-плакат (без наложения на дату и обложку)
         c.setFillColor(dark)
-        c.roundRect(30, 704, W - 60, 36, 7, fill=1, stroke=0)
+        c.roundRect(30, 668, W - 60, 36, 7, fill=1, stroke=0)
         c.setFont("DejaVu-Bold", 15); c.setFillColor(sky2)
-        c.drawString(46, 715, "№ %02d · " % issue)
-        c.drawString(122, 715, _one(iss.get("title", ""), 40))
+        c.drawString(46, 679, "№ %02d · " % issue)
+        c.drawString(122, 679, _one(iss.get("title", ""), 40))
         # ОБЛОЖКА — главный герой страницы
         c.setFillColor("white")
         c.roundRect(66, 296, W - 132, 404, 12, fill=1, stroke=0)

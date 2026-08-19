@@ -105,6 +105,8 @@ html = """<!DOCTYPE html>
     <a href="wiki-ice.html">📖 Энциклопедия Льда</a>
     <a href="heroes.html">🎭 Досье героев</a>
     <a href="fun.html">🎪 Забавный уголок</a>
+    <a href="epochs.html">📅 Лента эпох</a>
+    <a href="polyart.html">✨ Полиарт-φ</a>
     <a href="README.md">💾 README</a>
   </div>
   @@SERIES@@

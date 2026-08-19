@@ -28,6 +28,77 @@ def issue_date(jno, issue):
     return "%s %d" % (MONTHS[idx % 12].capitalize(), 2026 + idx // 12)
 
 
+def rgbc(hexcol):
+    return np.array(Image.new("RGB", (1, 1), hexcol).getpixel((0, 0)))
+
+
+def polyart_sky(W, H, c1, c2, accent, mid, chip, seed):
+    """Полиарт-φ: фон из полиномиальных слоёв (кривые степени 3), сетка золотого
+    сечения (φ), секущая спираль и 6-лепестковые кристаллы из полиномиальных линий."""
+    phi = (5 ** 0.5 + 1) / 2
+    rng = np.random.default_rng(seed)
+    xs = np.linspace(0, W, 220)
+
+    def curve(par, x):
+        a, b = par
+        t = x / W
+        cc = b * (t - 0.5) + a * (t - 0.5) ** 2 + (2 * a * b) * (t - 0.5) ** 3
+        return np.clip(0.5 + cc, 0.04, 0.96)
+
+    pars = [(rng.uniform(-2.4, 2.4), rng.uniform(-1.7, 1.7)) for _ in range(4)]
+    bounds = [np.zeros_like(xs)] + [curve(p, xs) for p in pars] + [np.ones_like(xs)]
+    stops = [c1, c2, rgbc(accent), rgbc(mid), rgbc(chip)]
+    im = Image.new("RGB", (W, H), tuple(c1.astype(int)))
+    d = ImageDraw.Draw(im)
+    for k in range(5):
+        lo, hi = bounds[k], bounds[k + 1]
+        col = (stops[k] * 0.68 + stops[(k + 1) % 5] * 0.32).astype(int)
+        poly = [(float(x), float(H) * (1 - hi[i])) for i, x in enumerate(xs)]
+        poly += [(xs[-1], H), (xs[-1], H * (1 - hi[-1])), (xs[0], H), (xs[0], H * (1 - hi[0]))]
+        # точнее: верх = вершины (x, H*(1-lo)); низ = (x, H*(1-hi))
+        poly = [(float(x), float(H) * (1 - lo[i])) for i, x in enumerate(xs)]
+        poly += [(xs[-1], H * (1 - hi[-1])), (xs[0], H * (1 - hi[0]))]
+        d.polygon(poly, fill=tuple(col))
+
+    # φ-сетка: тонкие секущие линии
+    soft = np.clip(stops[1] * 0.55 + 255 * 0.45, 0, 255).astype(int)
+    d.line([W * (1 - 1 / phi), 0, W * (1 - 1 / phi), H], fill=tuple(soft), width=1)
+    d.line([0, H * (1 - 1 / phi), W, H * (1 - 1 / phi)], fill=tuple(soft), width=1)
+
+    ov = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    od = ImageDraw.Draw(ov)
+    # φ-спираль (r растёт как φ за четверть оборота)
+    A = 16.0
+    ctr = (W * (1 - 1 / phi), H * (1 - 1 / phi))
+    pts = []
+    for th in np.linspace(0, 6.0 * np.pi, 640):
+        r = A * (phi ** (th / (np.pi / 2)))
+        pts.append((ctr[0] + r * np.cos(th), ctr[1] + r * np.sin(th)))
+    od.line(pts, fill=tuple(list(stops[2]) + [160]), width=3)
+
+    # кристаллы: 6 лепестков — полиномиальные квадратичные дуги
+    def petal(c0, tip, cp):
+        uu = np.linspace(0, 1, 24)
+        p0 = np.array(c0); p1 = np.array(tip); pc = np.array(cp)
+        out = []
+        for u in uu:
+            v = (1 - u) ** 2 * p0 + 2 * u * (1 - u) * pc + u ** 2 * p1
+            out.append((float(v[0]), float(v[1])))
+        return out
+
+    def rosette(cx, cy, r, color, alpha):
+        for k in range(6):
+            ang = k * np.pi / 3
+            tip = (cx + r * np.cos(ang), cy + r * np.sin(ang))
+            ctrl = (cx + 1.9 * r * np.cos(ang + 0.3), cy + 1.9 * r * np.sin(ang + 0.3))
+            od.line(petal((cx, cy), tip, ctrl), fill=tuple(list(color) + [alpha]), width=2)
+
+    rosette(W * (1 / phi), H * (1 - 1 / phi), 96, stops[3], 150)
+    rosette(W * (1 - 1 / phi), H * (1 / phi), 64, stops[2], 140)
+    im = Image.alpha_composite(im.convert("RGBA"), ov).convert("RGB")
+    return im
+
+
 def make_cover(jno, issue):
     name, slug, slogan = g.JOURNALS[jno]
     sky1, sky2, sunc, accent, mid, dark, chip = g.PAL[jno]
@@ -39,13 +110,7 @@ def make_cover(jno, issue):
     c2 = np.array(Image.new("RGB", (1, 1), sky2).getpixel((0, 0)))
     if jno >= 11:
         c1, c2 = np.array([13, 10, 18]), np.array([28, 20, 39])
-    im = Image.new("RGB", (W, H))
-    px = im.load()
-    for y in range(H):
-        t = y / H
-        col = tuple((c1 * (1 - t) + c2 * t).astype(int))
-        for x in range(W):
-            px[x, y] = col
+    im = polyart_sky(W, H, c1, c2, accent, mid, chip, jno * 97 + issue)
     d = ImageDraw.Draw(im)
 
     b = Image.open(g.banner(jno)).convert("RGB")

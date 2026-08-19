@@ -133,6 +133,8 @@ html = """<!DOCTYPE html>
     <a href="wiki-ice.html">📖 Энциклопедия</a>
     <a href="heroes.html">🎭 Досье героев</a>
     <a href="press-center.html">📰 Пресс-Центр</a>
+    <a href="epochs.html">📅 Лента эпох</a>
+    <a href="polyart.html">✨ Полиарт-φ</a>
   </div>
   @@HOR@@
   @@RID@@
