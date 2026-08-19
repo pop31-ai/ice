@@ -262,6 +262,21 @@ def simulate(jno, issue):
     return pname, length, ice, mana, fish, pop, storm_arr, dt
 
 
+def sim_stats(jno, issue):
+    """Сводка реальной партии (движок index.html) для «ТАБЛО» рубрик."""
+    pname, length, ice, mana, fish, pop, storm, dt = simulate(jno, issue)
+    on = np.concatenate(([0], storm.astype(int)))
+    storms = int((np.diff(on) == 1).sum())
+    return {
+        "pname": pname,
+        "survived": int(round(length)),
+        "peak_pop": int(pop.max()),
+        "storms": storms,
+        "peak_fish": int(fish.max()),
+        "final_ice": int(round(ice[-1])) if ice[-1] > 0 else 0,
+    }
+
+
 def chart(jno, issue):
     """График «из-под капота»: реальная симуляция партии по коду index.html."""
     sky1, sky2, sunc, accent, mid, dark, chip = PAL[jno]
@@ -594,22 +609,26 @@ def draw_techpass(c, y, pal):
     c.drawCentredString(W / 2, y + 6, TECHPASSPORT)
 
 
-def draw_hero_section(c, label, text, y, pal, car_p):
+def draw_hero_section(c, label, text, y, pal, car_p, glass=False):
     dark = pal[5]
+    body_col = pal[1] if glass else dark
     c.setFont("DejaVu-Bold", 7.6)
     c.setFillColor(pal[3])
     c.drawString(34, y, label)
     y -= 10
     im_w, im_h = 118, 128
     x_im = W - 30 - im_w
-    c.setFillColor("white")
-    c.roundRect(x_im, y - im_h, im_w, im_h, 8, fill=1, stroke=0)
+    if glass:
+        c.setFillColor("#17101f"); c.setStrokeColor(pal[2]); c.setLineWidth(0.8)
+    else:
+        c.setFillColor("white"); c.setStrokeColor(pal[5]); c.setLineWidth(0.8)
+    c.roundRect(x_im, y - im_h, im_w, im_h, 8, fill=1, stroke=1)
     c.drawImage(car_p, x_im + 3, y - im_h + 3, im_w - 6, im_h - 6)
     c.setFont("DejaVu-Obl", 6.5)
-    c.setFillColor(pal[5])
+    c.setFillColor(pal[1] if glass else pal[5])
     c.drawCentredString(x_im + im_w / 2, y - im_h - 9, "шарж номера · серийный герой")
     c.setFont("DejaVu", 8.3)
-    c.setFillColor(dark)
+    c.setFillColor(body_col)
     lw = x_im - 34 - 16
     for ln in wrap(text, "DejaVu", 8.3, lw):
         c.drawString(34, y - 2, ln)
@@ -651,13 +670,17 @@ def _card(c, x, y, w, h, title, body, tcol, bcol, border, glass=False, fill=None
 
 
 def rubric_page(c, jno, iss, issue, quote, hint, glass=False):
-    """Вторая страница номера — лист рубрик: ПРОГНОЗ-инженерка, СКОВОРОДНИК, БАБАЙ, КАНЦЕЛЯРИЯ."""
+    """Вторая страница номера — журнальный разворот рубрик:
+    табло симуляции (реальные цифры движка), инженерка, сковородник,
+    судьбы героя с шаржем, Бабай, канцелярия, память номера."""
     name, slug, slogan = JOURNALS[jno]
     sky1, sky2, sun, accent, mid, dark, chip = PAL[jno]
     if glass:
         base, bar, ink, frame_col = "#0f0b16", sun, sky2, sun
+        pan_fill = "#17101f"
     else:
         base, bar, ink, frame_col = sky2, accent, dark, mid
+        pan_fill = "#FFFFFF"
     c.setFillColor(base); c.rect(0, 0, W, H, fill=1, stroke=0)
     c.setStrokeColor(frame_col); c.setLineWidth(1.2); c.rect(16, 16, W - 32, H - 32, fill=0, stroke=1)
     # хедер
@@ -668,55 +691,79 @@ def rubric_page(c, jno, iss, issue, quote, hint, glass=False):
     c.setFont("DejaVu-Obl", 8); c.setFillColor(ink)
     c.drawCentredString(W / 2, H - 74, "№ %02d/10 · %s · вторая страница номера — как в настоящих газетах"
                      % (issue, iss.get("date", "")))
-    # рубрики — плотная сетка 2x2 на всю высоту страницы
+    blue, gold = mid, accent
+
+    # ТАБЛО СИМУЛЯЦИИ — реальная партия по коду index.html
+    st = sim_stats(jno, issue)
+    c.setFillColor(pan_fill); c.setStrokeColor(frame_col); c.setLineWidth(0.8)
+    c.roundRect(30, 686, W - 60, 54, 8, fill=1, stroke=1)
+    c.setFillColor(accent if not glass else sun)
+    c.roundRect(30, 726, W - 60, 14, 5, fill=1, stroke=0)
+    c.setFont("DejaVu-Bold", 7.5); c.setFillColor("#FFFFFF")
+    c.drawCentredString(W / 2, 731, "◆ ТАБЛО СИМУЛЯЦИИ · реальная партия по коду index.html")
+    c.setFont("DejaVu-Bold", 9); c.setFillColor(ink if not glass else sky2)
+    c.drawCentredString(W / 2, 702,
+        "профиль «%s» · выжили до %dс · пик людей %d · штормов %d · пик рыбы %d · льда в финале %d%%"
+        % (st["pname"], st["survived"], st["peak_pop"], st["storms"], st["peak_fish"], st["final_ice"]))
+
+    # ряд карточек: ПРОГНОЗ-инженерка и СКОВОРОДНИК
     eng_title, eng_body = ENGCALC[(issue - 1) % len(ENGCALC)]
     pan_kind, pan_text = PANS[(jno + issue) % len(PANS)]
-    babai = BABAIS[(jno * 3 + issue) % len(BABAIS)]
-    extra = EXTRA[(jno + issue * 2) % len(EXTRA)]
-    blue, gold = mid, accent
-    top1, gap, rowh = H - 150, 16, 210
     xl, xr, cw = 34, 310, 262
+    top1, gap, rowh1 = 672, 14, 174
     if glass:
         f1 = f2 = None
     else:
         f1 = _mix(base, accent, 0.10)
         f2 = _mix(base, mid, 0.10)
-    _card(c, xl, top1 - rowh, cw, rowh, "ПРОГНОЗ · ИНЖЕНЕРНЫЕ ВЫКЛАДКИ",
+    _card(c, xl, top1 - rowh1, cw, rowh1, "ПРОГНОЗ · ИНЖЕНЕРНЫЕ ВЫКЛАДКИ",
           "Расчёт — " + eng_title + ". " + eng_body +
           " Цифры проверены редакцией и съедены в виде омлета по-ледянски. "
           "Любой показатель можно пересчитать: калькулятор прилагается к чаю.",
           blue, ink, frame_col, glass, fill=f1)
-    _card(c, xr, top1 - rowh, cw, rowh, "СКОВОРОДНИК · %s" % pan_kind,
+    _card(c, xr, top1 - rowh1, cw, rowh1, "СКОВОРОДНИК · %s" % pan_kind,
           pan_text + " На полях зарисовка: сковорода — тоже судьба. "
           "Инструкция к ней: жарить с уважением к льду, переворачивать на закате, "
           "мыть талой водой и не давать Бабаю.",
           gold, ink, frame_col, glass, fill=f2)
-    bot = top1 - gap - rowh
-    _card(c, xl, bot, cw, rowh, "БАБАЙ · НАБЛЮДЕНИЯ",
+
+    # СУДЬБЫ ГЕРОЯ с шаржем
+    car_p = caricature(jno, issue, iss.get("hero", ""))
+    draw_hero_section(c, "СУДЬБЫ ГЕРОЕВ НОМЕРА",
+                      iss.get("hero", "") or "серийный герой без имени",
+                      490, tuple(PAL[jno]), car_p, glass)
+
+    # ряд карточек: БАБАЙ и КАНЦЕЛЯРИЯ
+    babai = BABAIS[(jno * 3 + issue) % len(BABAIS)]
+    extra = EXTRA[(jno + issue * 2) % len(EXTRA)]
+    bot = 350
+    rowh2 = 140
+    _card(c, xl, bot - rowh2, cw, rowh2, "БАБАЙ · НАБЛЮДЕНИЯ",
           babai + " Записано дежурным по лагерю, подписано неразборчиво, "
           "перечитано вслух при свече изо льда. Свидетелей было трое: все считают иначе. "
           "В архив сдан оригинал, в киоск — иллюстрация.",
           gold, ink, frame_col, glass, fill=f2)
-    _card(c, xr, bot, cw, rowh, "КАНЦЕЛЯРИЯ · ПРОЧЕЕ",
+    _card(c, xr, bot - rowh2, cw, rowh2, "КАНЦЕЛЯРИЯ · ПРОЧЕЕ",
           extra + " Учётная строка: «" + _one(iss.get("refl", ""), 96) + "». "
-          "Второй экземпляр сдан в архив Вечерки; третий — засушен между страницами 120-го номера.",
+          "Второй экземпляр сдан в архив Вечерки; третий — засушен между страницами 130-го номера.",
           blue, ink, frame_col, glass, fill=f1)
+
     # широкая нижняя полоса с тайной строкой
     c.setFillColor(bar)
-    c.roundRect(30, 226, W - 60, 46, 8, fill=1, stroke=0)
+    c.roundRect(30, 158, W - 60, 44, 8, fill=1, stroke=0)
     c.setFont("DejaVu-Bold", 8); c.setFillColor("#FFFFFF")
-    c.drawCentredString(W / 2, 258, "★ ПАМЯТЬ НОМЕРА ★")
+    c.drawCentredString(W / 2, 190, "★ ПАМЯТЬ НОМЕРА ★")
     c.setFont("DejaVu-Obl", 8.5); c.setFillColor("#FFFFFF")
-    c.drawCentredString(W / 2, 240, "……" + hint + "……")
+    c.drawCentredString(W / 2, 172, "……" + hint + "……")
     # техпаспорт
-    draw_techpass(c, 176, tuple(PAL[jno]))
+    draw_techpass(c, 128, tuple(PAL[jno]))
     c.setFont("DejaVu-Obl", 7.5); c.setFillColor(ink)
-    c.drawCentredString(W / 2, 146, "серия «%s» · № %02d/10 · лист 2/2 · иллюстрации — полиарт" % (name, issue))
+    c.drawCentredString(W / 2, 110, "серия «%s» · № %02d/10 · лист 2/2 · иллюстрации — полиарт" % (name, issue))
     # орнамент внизу + подвал
     c.setFillColor(frame_col)
-    c.roundRect(34, 60, W - 68, 30, 5, fill=1, stroke=0)
+    c.roundRect(34, 44, W - 68, 30, 5, fill=1, stroke=0)
     c.setFont("DejaVu", 6.6); c.setFillColor("#FFFFFF")
-    c.drawCentredString(W / 2, 74, "© Ледяная Вечерка · все выпуски живут по своим датам · сковородка печатается по понедельникам")
+    c.drawCentredString(W / 2, 58, "© Ледяная Вечерка · все выпуски живут по своим датам · сковородка печатается по понедельникам")
 
 
 def build_pdf(jno, issues):
@@ -791,16 +838,17 @@ def build_pdf(jno, issues):
         c.setFillColor("white")
         c.roundRect(30, 96, W - 60, 112, 8, fill=1, stroke=0)
         c.drawImage(chart_p, 36, 100, W - 72, 104)
-        # тайная строка
+        # тайная строка + реальные цифры партии
+        st1 = sim_stats(jno, issue)
         c.setFont("DejaVu-Obl", 7.5); c.setFillColor(dark)
-        c.drawCentredString(W / 2, 84, "…%s…" % hint)
+        c.drawCentredString(W / 2, 84, "…%s… · профиль «%s» · выжили до %dс" % (hint, st1["pname"], st1["survived"]))
         # техпаспорт
         draw_techpass(c, 56, tuple(PAL[jno]))
         # подвал
         c.setFillColor(accent)
         c.roundRect(30, 28, W - 60, 22, 5, fill=1, stroke=0)
         c.setFont("DejaVu", 7); c.setFillColor("#FFFFFF")
-        c.drawCentredString(W / 2, 34, "серия «%s» · книга «%s» · герой: %s …" %
+        c.drawCentredString(W / 2, 34, "лист 1/2 · «%s» · книга «%s» · герой: %s …" %
                             (name, quote[:60], _one(iss.get("hero", ""), 90)))
         c.showPage()
         rubric_page(c, jno, iss, issue, quote, hint, glass=False)
@@ -880,10 +928,11 @@ def build_glossy_pdf(jno, issues):
                 c.drawString(cx, yy, ln)
                 yy -= 10.5
             col_y["left" if i % 2 == 0 else "right"] = yy - 14
-        # тайная строка
+        # тайная строка + реальные цифры партии
+        st2 = sim_stats(jno, issue)
         c.setFillColor(sky2)
         c.setFont("DejaVu-Obl", 9)
-        c.drawCentredString(W / 2, 210, "……" + hint + "……")
+        c.drawCentredString(W / 2, 210, "……%s…… · профиль «%s» · %dс" % (hint, st2["pname"], st2["survived"]))
         # техпаспорт
         draw_techpass(c, 168, tuple(PAL[jno]))
         # подвал
