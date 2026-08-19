@@ -62,6 +62,50 @@
 
   .hint { font-size: 12px; opacity: 0.85; text-align: center; margin-top: 10px; line-height: 1.5; }
   .hint b { color: #9fe0ff; }
+  .hint a { color: #9fe0ff; }
+
+  .ch-title { font-size: 12px; letter-spacing: 2px; opacity: 0.75; margin: 12px 4px 4px; }
+  #chronicle {
+    background: rgba(0,0,0,0.22);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 8px 12px;
+    max-height: 110px;
+    overflow-y: auto;
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+  #chronicle .birth { color: #9fe0ff; }
+  #chronicle .death { color: #ff8f8f; }
+  #chronicle .storm { color: #d7b8ff; }
+  #chronicle .info  { opacity: 0.8; }
+  #chronicle .record { color: #ffdf7e; font-weight: 600; }
+
+  .links-row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 12px; }
+  .links-row a {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 10px;
+    padding: 7px 14px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: inherit;
+    text-decoration: none;
+  }
+  .links-row a:hover { background: rgba(255,255,255,0.16); }
+  .epitaph {
+    margin-top: 10px;
+    text-align: left;
+    font-size: 13px;
+    line-height: 1.6;
+    background: rgba(255,255,255,0.06);
+    border-radius: 12px;
+    padding: 12px 14px;
+    max-height: 170px;
+    overflow-y: auto;
+  }
+  .epitaph .e { opacity: 0.92; margin: 3px 0; }
+  .epitaph .ehead { color: #9fe0ff; font-weight: 700; margin-bottom: 6px; }
 
   #overlay {
     display: none;
@@ -131,10 +175,19 @@
 
     <canvas id="cv" width="900" height="600"></canvas>
 
+    <div class="ch-title">📜 Летопись лагеря</div>
+    <div id="chronicle"></div>
+
     <div class="hint">
       <b>Клик по льду</b> — морозный заряд (+🧊, тратит 🔮). <b>Клик по воде</b> — ловля рыбы (+🐟).
       Рыба кормит людей, они родятся при запасе ≥25. Люди ускоряют таяние — не дай айсбергу растаять!
-      <br><a href="press-center.html" style="color:#9fe0ff;">📰 Открыть Пресс-Центр: 100 статей и 12 журналов</a>
+      <div class="links-row">
+        <a href="press-center.html">📰 Пресс-Центр</a>
+        <a href="kiosk.html">🗞 Киоск · 120 обложек</a>
+        <a href="wiki-ice.html">📖 Энциклопедия</a>
+        <a href="heroes.html">🎭 Досье героев</a>
+        <a href="fun.html">🎪 Забавный уголок</a>
+      </div>
     </div>
   </div>
 
@@ -144,6 +197,7 @@
       <p id="overDesc">Человечки утонули в ледяной воде…</p>
       <div class="score">⭐ <span id="finalScore">0</span></div>
       <p>Выживание: <b id="finalTime">0</b> сек · Люди: <b id="finalPop">0</b></p>
+      <div class="epitaph" id="overEpitaph"></div>
       <button class="btn" id="restartBtn">Играть снова</button>
     </div>
   </div>
@@ -161,14 +215,34 @@
 
   const MAN_COLORS = ['#4aa8e0', '#e85d5d', '#5fd08a', '#f5b83d', '#b07ae0', '#45c6b5', '#f08a5d', '#ff6b81'];
   const HAT_COLORS = ['#e85d5d', '#f5b83d', '#5fd08a', '#4aa8e0', '#ff6b81', '#b07ae0'];
+  const NAMES = ['Дед-Ледяник', 'Снежа', 'Морозка', 'Шахтёр-9', 'Шаман Хруст', 'Старый Капитан',
+                 'Повариха Инга', 'Малыш Крис', 'Бабушка из Снежнинска', 'Сеть-Соня', 'Гвидон Льдинка',
+                 'Молодой-6', 'Хранитель Маяка', 'Тихий Вася', 'Поля', 'Корреспондент Вечерки',
+                 'Узел-Проводник', 'Луна-Мороз', 'Плотник Байкал', 'Журналист Будущего'];
 
   const S = {
     ice: 100, mana: 100, fish: 40, pop: 4,
     time: 0, over: false, high: 0,
     birthTimer: 0, starveTimer: 0, fishCd: 0,
     storm: null, stormTimer: 55, ambTimer: 2,
-    men: [], parts: [], texts: [], splashes: []
+    men: [], parts: [], texts: [], splashes: [],
+    stats: { born: 0, dead: 0, storms: 0, record: 0, maxPop: 4 }
   };
+
+  const chronicle = document.getElementById('chronicle');
+  function addChronicle(line, cls) {
+    if (!chronicle) return;
+    const d = document.createElement('div');
+    d.className = cls || 'info';
+    d.textContent = '[' + String(Math.floor(S.time)).padStart(4, ' ') + 'с] ' + line;
+    chronicle.prepend(d);
+    while (chronicle.children.length > 9) chronicle.removeChild(chronicle.lastChild);
+  }
+  function campGreeting() {
+    const names = S.men.map(m => m.name);
+    const joined = names.slice(0, 3).join(', ') + (names.length > 3 ? ' и другие' : '');
+    addChronicle('Лагерь основан: ' + joined + '. Лёд — их дом, сковорода — их вера.', 'info');
+  }
 
   const el = (id) => document.getElementById(id);
   const iceFill = el('iceFill'), iceTxt = el('iceTxt'), meltTxt = el('meltTxt');
@@ -189,13 +263,20 @@
       dir: Math.random() < 0.5 ? -1 : 1,
       c: MAN_COLORS[Math.floor(Math.random() * MAN_COLORS.length)],
       hat: HAT_COLORS[Math.floor(Math.random() * HAT_COLORS.length)],
+      name: NAMES[Math.floor(Math.random() * NAMES.length)],
       fishT: Math.random() * 3
     };
     S.men.push(m);
   }
 
   function removeMan() {
-    if (S.men.length > 0) S.men.splice(Math.floor(Math.random() * S.men.length), 1);
+    if (S.men.length > 0) {
+      const i = Math.floor(Math.random() * S.men.length);
+      const m = S.men[i];
+      S.men.splice(i, 1);
+      return m;
+    }
+    return null;
   }
 
   function addText(x, y, txt) {
@@ -234,12 +315,24 @@
     if (score > S.high) {
       S.high = score;
       try { localStorage.setItem(highKey, S.high); } catch (e) {}
+      S.stats.record = 1;
+      addChronicle('🏆 Новый рекорд лагеря: ' + score + ' очков!', 'record');
     }
     el('overTitle').textContent = reason === 'pop' ? 'Все человечки погибли' : 'Айсберг растаял';
     el('overDesc').textContent = reason === 'pop' ? 'Рыба закончилась, и голод погубил племя…' : 'Ледяной остров ушёл под воду вместе с племенем…';
     el('finalScore').textContent = score;
     el('finalTime').textContent = Math.floor(S.time);
     el('finalPop').textContent = S.pop;
+
+    const ep = [];
+    ep.push('<div class="ehead">📜 Хроника эпохи</div>');
+    ep.push('<div class="e">За это время родилось <b>' + S.stats.born + '</b> человек, ушло в лёд — <b>' + S.stats.dead + '</b>.</div>');
+    ep.push('<div class="e">Племя пережило <b>' + S.stats.storms + '</b> штормов' + (S.stats.storms ? ' и стало чуть мудрее.' : '. И это мудрость покоя.') + '</div>');
+    ep.push('<div class="e">Самая большая семья лагеря — <b>' + S.stats.maxPop + '</b> из 12. Остальные 12 ждут следующих серий.</div>');
+    ep.push('<div class="e">Редакция «Ледяной Вечерки» уже пишет об этом номере. Скоро он станет историей.</div>');
+    const pan = reason === 'pop' ? 'Посуда, оставшаяся без омлета, — самая тихая грусть. Осталась сковорода.' : 'На поверхности — только сковорода «Айсберг». Она пережила всех.';
+    ep.push('<div class="e" style="opacity:.75">🥘 ' + pan + '</div>');
+    el('overEpitaph').innerHTML = ep.join('');
     el('overlay').classList.add('show');
   }
 
@@ -248,9 +341,12 @@
       ice: 100, mana: 100, fish: 40, pop: 4, time: 0, over: false,
       birthTimer: 0, starveTimer: 0, fishCd: 0,
       storm: null, stormTimer: 55, ambTimer: 2,
-      men: [], parts: [], texts: [], splashes: []
+      men: [], parts: [], texts: [], splashes: [],
+      stats: { born: 0, dead: 0, storms: 0, record: 0, maxPop: 4 }
     });
     for (let i = 0; i < 4; i++) spawnMan();
+    chronicle.innerHTML = '';
+    campGreeting();
     el('overlay').classList.remove('show');
   }
 
@@ -281,16 +377,26 @@
 
     if (S.pop < MAX_POP && S.fish >= 25) {
       S.birthTimer += dt;
-      if (S.birthTimer >= 6) { S.pop++; S.fish -= 15; S.birthTimer = 0; spawnMan(); addText(cx, waterY - 40, '+ человечек 👶'); }
+      if (S.birthTimer >= 6) {
+        S.pop++; S.fish -= 15; S.birthTimer = 0;
+        spawnMan();
+        S.stats.born++;
+        if (S.pop > S.stats.maxPop) S.stats.maxPop = S.pop;
+        const nb = S.men[S.men.length - 1];
+        addText(cx, waterY - 40, '+ человечек 👶');
+        addChronicle('Родился ' + nb.name + '. Вечерка уже готовит заметку.', 'birth');
+      }
     } else S.birthTimer = 0;
 
     if (S.fish <= 0) {
       S.starveTimer += dt;
       if (S.starveTimer >= 3) {
         S.pop--;
-        removeMan();
+        const gone = removeMan();
+        S.stats.dead++;
         S.starveTimer = 2.0;
         addText(cx, waterY - 40, '💀 голод!');
+        if (gone) addChronicle('Не выдержал голода: ' + gone.name + '. Лагерь провожает его взглядом.', 'death');
         if (S.pop <= 0) gameOver('pop');
       }
     } else S.starveTimer = 0;
@@ -299,7 +405,9 @@
     if (S.stormTimer <= 0 && !S.storm) {
       S.storm = { t: 10 };
       S.stormTimer = 50 + Math.random() * 20;
+      S.stats.storms++;
       addText(cx, 120, '🌩 Шторм! Таяние усилено!');
+      addChronicle('Шторм ×2.5 на 10с! Все прижимают шапки и жарят омлет с уважением.', 'storm');
     }
 
     const d = dims();
@@ -498,6 +606,8 @@
 
   for (let i = 0; i < 4; i++) spawnMan();
   updateHud();
+  campGreeting();
+  addChronicle('Редакция на связи: 100 статей и 12 журналов уже ждут в Пресс-Центре.', 'info');
   requestAnimationFrame(loop);
 })();
 </script>

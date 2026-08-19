@@ -65,6 +65,8 @@ html = """<!DOCTYPE html>
   <div class="topnav">
     <a href="kiosk.html">🗞 Газетный киоск — 120 обложек</a>
     <a href="wiki-ice.html">📖 Энциклопедия Льда — движок, герои, инженерка, Бабай</a>
+    <a href="heroes.html">🎭 Досье героев — 120 шаржей</a>
+    <a href="fun.html">🎪 Забавный уголок</a>
   </div>
 
   <h2>📰 Журналы (PDF · по 10 выпусков)</h2>

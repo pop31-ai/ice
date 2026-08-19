@@ -120,6 +120,8 @@ html_page = """<!DOCTYPE html>
     <a href="index.html">🎮 Игра</a>
     <a href="press-center.html">📰 Пресс-Центр</a>
     <a href="kiosk.html">🗞 Газетный киоск</a>
+    <a href="heroes.html">🎭 Досье героев</a>
+    <a href="fun.html">🎪 Забавный уголок</a>
     <a href="README.md">💾 README</a>
   </div>
 
