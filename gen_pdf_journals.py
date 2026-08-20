@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Свёрстка «Ледяного Пресс-Центра»: 10 цветных PDF-журналов,
-по 10 выпусков (первых полос) в каждом. Контент берётся из
+Вёрстка «Ледяного Пресс-Центра»: 13 серий PDF-журналов,
+по 10 выпусков (первых полос) в каждой. Контент берётся из
 journals/YYYY-MM/*.txt. Иллюстрации — matplotlib, шрифты —
 DejaVu (из поставки matplotlib), страницы — reportlab canvas.
 """
@@ -333,9 +333,13 @@ PHRASES = [
 
 
 def caricature(jno, issue, hero):
-    """Шарж героя номера: огромная голова, крошечное тело, шапка-помпон."""
+    """Шарж героя номера: большая голова, крошечное тело. Характер, шляпа, глаза, рот
+    и реквизит выводятся из имени героя и выпуска — каждый номер своего человека,
+    повторяющийся герой остаётся узнаваемым."""
+    import zlib
     sky1, sky2, sunc, accent, mid, dark, chip = PAL[jno]
-    rng = np.random.default_rng(jno * 1000 + issue)
+    hseed = zlib.crc32((hero or "серийный герой").encode("utf-8")) if hero else (jno * 7 + issue) * 13
+    rng = np.random.default_rng(hseed * 31 + jno * 17 + issue * 5)
     w, h = 220, 240
     fig = plt.figure(figsize=(w / 96, h / 96), dpi=96)
     fig.patch.set_facecolor("white")
@@ -345,56 +349,217 @@ def caricature(jno, issue, hero):
         col = tuple(t * np.array(plt.matplotlib.colors.to_rgb(sky2)) +
                     (1 - t) * np.array(plt.matplotlib.colors.to_rgb(sky1)))
         ax.add_patch(plt.Rectangle((0, i), w, 1, color=col))
-    # снег
+    for k in range(14):
+        xs, ys = rng.uniform(8, w - 8), rng.uniform(h * 0.5, h * 0.98)
+        ax.plot(xs, ys, marker="o", markersize=1 + (k % 3) / 2, color=(1, 1, 1), alpha=0.8)
     ax.add_patch(plt.Rectangle((0, 0), w, h * 0.08, color=(0.97, 0.98, 1)))
     cx, cy = w / 2, h * 0.60
-    skin = (1.0, 0.93, 0.87)
+    skins = [(1.0, 0.93, 0.87), (0.97, 0.87, 0.78), (0.92, 0.82, 0.72)]
+    skin = skins[int(rng.integers(0, len(skins)))]
     # тело-полушубок (крошечное)
     ax.add_patch(plt.Rectangle((cx - 16, 4), 32, 26, color=accent, edgecolor=dark, lw=2, zorder=3))
     ax.add_patch(plt.Circle((cx - 16, 18), 5, color=mid)); ax.add_patch(plt.Circle((cx + 16, 18), 5, color=mid))
     ax.add_patch(plt.Circle((cx, 26), 9, color=skin, zorder=4))
+    scarfs = [sunc, accent, mid, chip, (0.85, 0.4, 0.45)]
+    ax.add_patch(plt.Rectangle((cx - 9, 25), 18, 6, color=scarfs[int(rng.integers(0, len(scarfs)))],
+                               edgecolor=dark, lw=1.2, zorder=4))
     # огромная голова
-    rx, ry = 52 + rng.uniform(-6, 8), 40 + rng.uniform(-5, 6)
+    rx = 52 + rng.uniform(-10, 12); ry = 40 + rng.uniform(-6, 8)
     ax.add_patch(plt.matplotlib.patches.Ellipse((cx, cy), rx, ry, facecolor=skin,
                                                 edgecolor=dark, lw=2, zorder=5))
-    # уши
     for s in (-1, 1):
         ax.add_patch(plt.Circle((cx + s * rx * 0.62, cy - 8), 12, color=skin,
                                 edgecolor=dark, lw=1.5, zorder=5))
-    # гигантский нос
-    ax.add_patch(plt.matplotlib.patches.Ellipse((cx, cy - 2), 20, 30, facecolor=(0.99, 0.85, 0.75),
-                                                edgecolor=dark, lw=1.5, zorder=6))
-    # глаза
+    # нос
+    nscale = 1 + rng.uniform(-0.2, 0.6)
+    ax.add_patch(plt.matplotlib.patches.Ellipse((cx, cy - 2), 20 * nscale, 30 * nscale,
+                                                facecolor=(0.99, 0.85, 0.75), edgecolor=dark, lw=1.5, zorder=6))
+    # глаза: пять стилей
+    eye_k = int(rng.integers(0, 5)); gl_k = int(rng.integers(0, 3))
     for s in (-1, 1):
-        ax.add_patch(plt.Circle((cx + s * 16, cy + 12), 8, color="white", zorder=6))
-        ax.add_patch(plt.Circle((cx + s * 16, cy + 12), 4, color=dark, zorder=7))
+        ex = cx + s * 16
+        ax.add_patch(plt.Circle((ex, cy + 12), 8, color="white", zorder=6))
+        if eye_k == 0:
+            ax.add_patch(plt.Circle((ex, cy + 12), 4, color=dark, zorder=7))
+        elif eye_k == 1:
+            ax.add_patch(plt.Circle((ex, cy + 12), 2.4, color=dark, zorder=7))
+        elif eye_k == 2:
+            ax.add_patch(plt.matplotlib.patches.Ellipse((ex, cy + 12), 5, 3, color=dark, zorder=7))
+        elif eye_k == 3:
+            ax.add_patch(plt.Circle((ex, cy + 12), 1.6, color=dark, zorder=7))
+        else:
+            ax.add_patch(plt.Circle((ex, cy + 12), 2.2, color=dark, zorder=7))
     ax.add_patch(plt.Circle((cx + 6, cy + 12), 7, color="white", zorder=6))
-    ax.add_patch(plt.Circle((cx + 6, cy + 12), 3.5, color=dark, zorder=7))
-    # брови
+    ax.add_patch(plt.Circle((cx + 6, cy + 12), (4 if eye_k == 0 else 2.2), color=dark, zorder=7))
+    # брови с наклоном
+    ang = rng.uniform(-0.4, 0.4)
     for s in (-1, 1):
-        ax.plot([cx + s * 25, cx + s * 8], [cy + 27, cy + 25], color=dark, lw=2.5, zorder=7)
+        ax.plot([cx + s * 25, cx + s * 8], [cy + 27 + ang * 10, cy + 25 - ang * 10], color=dark, lw=2.5, zorder=7)
     # румянец
     for s in (-1, 1):
         ax.add_patch(plt.Circle((cx + s * 26, cy - 12), 6, color=(1, 0.7, 0.7), alpha=0.55, zorder=5))
-    # шапка с помпоном
-    cols = [sunc, mid, accent]
-    hc = cols[(issue + jno) % 3]
-    ax.add_patch(plt.matplotlib.patches.Ellipse((cx, cy + ry * 0.52), rx * 0.9, 16,
-                                                facecolor=hc, edgecolor=dark, lw=2, zorder=8))
-    ax.add_patch(plt.Rectangle((cx - rx * 0.4, cy + ry * 0.46), rx * 0.8, 18, facecolor=hc,
-                               edgecolor=dark, lw=2, zorder=8))
-    ax.add_patch(plt.Circle((cx, cy + ry * 0.46 + 22), 9, color=mid if issue % 2 else sunc, zorder=9))
+    if rng.uniform() < 0.4:
+        for k in range(4):
+            ax.plot(cx + rng.uniform(-24, 24), cy + rng.uniform(-16, -4), marker="o", markersize=1.4,
+                    color=(0.6, 0.4, 0.3), zorder=6)
+    # рот: пять стилей
+    mouth_k = int(rng.integers(0, 5))
+    if mouth_k == 0:
+        ax.plot([cx - 12, cx - 4, cx + 4, cx + 12], [cy - 18, cy - 12, cy - 12, cy - 18], color=dark, lw=2, zorder=7)
+    elif mouth_k == 1:
+        ax.add_patch(plt.Rectangle((cx - 11, cy - 21), 22, 5, facecolor=(0.75, 0.18, 0.2), edgecolor=dark, lw=1, zorder=7))
+    elif mouth_k == 2:
+        ax.add_patch(plt.matplotlib.patches.Wedge((cx, cy - 15), 9, 200, 340,
+                                                  facecolor=(0.35, 0.15, 0.15), edgecolor=dark, lw=1, zorder=7))
+    elif mouth_k == 3:
+        ax.add_patch(plt.matplotlib.patches.Wedge((cx - 8, cy - 14), 7, 20, 160, facecolor=dark, zorder=7))
+        ax.add_patch(plt.matplotlib.patches.Wedge((cx + 8, cy - 14), 7, 20, 160, facecolor=dark, zorder=7))
+    else:
+        ax.add_patch(plt.matplotlib.patches.Ellipse((cx, cy - 13), 30, 15, facecolor=(0.55, 0.5, 0.5),
+                                                    edgecolor=dark, lw=1, zorder=6))
+    # шляпа: четыре фасона
+    cols = [sunc, mid, accent, chip]
+    hat_k = int(rng.integers(0, 4)); hc = cols[int(rng.integers(0, len(cols)))]
+    hy = cy + ry * 0.52
+    if hat_k == 0:  # ушанка
+        ax.add_patch(plt.matplotlib.patches.Ellipse((cx, hy + 6), rx * 0.95, 18, facecolor=hc, edgecolor=dark, lw=2, zorder=8))
+        ax.add_patch(plt.Rectangle((cx - rx * 0.45, hy + 4), rx * 0.9, 12, facecolor=hc, edgecolor=dark, lw=2, zorder=8))
+        ax.add_patch(plt.Circle((cx - rx * 0.38, hy - 2), 8, facecolor=hc, edgecolor=dark, lw=1.5, zorder=8))
+        ax.add_patch(plt.Circle((cx + rx * 0.38, hy - 2), 8, facecolor=hc, edgecolor=dark, lw=1.5, zorder=8))
+    elif hat_k == 1:  # бини с помпоном
+        ax.add_patch(plt.matplotlib.patches.Ellipse((cx, hy + 8), rx * 0.9, 16, facecolor=hc, edgecolor=dark, lw=2, zorder=8))
+        ax.add_patch(plt.Rectangle((cx - rx * 0.4, hy + 6), rx * 0.8, 18, facecolor=hc, edgecolor=dark, lw=2, zorder=8))
+        ax.add_patch(plt.Circle((cx, hy + 28), 9, color=mid if issue % 2 else sunc, zorder=9))
+    elif hat_k == 2:  # кепка с козырьком
+        ax.add_patch(plt.matplotlib.patches.Ellipse((cx, hy + 10), rx * 0.92, 16, facecolor=hc, edgecolor=dark, lw=2, zorder=8))
+        ax.add_patch(plt.Rectangle((cx - rx * 0.42, hy + 8), rx * 0.84, 12, facecolor=hc, edgecolor=dark, lw=2, zorder=8))
+        ax.add_patch(plt.matplotlib.patches.Ellipse((cx + rx * 0.3, hy - 2), 18, 7, facecolor=sunc, edgecolor=dark, lw=1.5, zorder=9))
+    else:             # колпак-вечеринка
+        ax.add_patch(plt.Polygon([(cx - rx * 0.28, hy + 2), (cx + rx * 0.28, hy + 2), (cx, hy + 46)],
+                                 facecolor=hc, edgecolor=dark, lw=2, zorder=8))
+        ax.add_patch(plt.Circle((cx, hy + 47), 6, color=sunc, zorder=9))
+    # очки
+    if gl_k == 1:
+        for s in (-1, 1):
+            ax.add_patch(plt.Circle((cx + s * 16, cy + 12), 10, fill=False, edgecolor=dark, lw=1.6, zorder=8))
+        ax.plot([cx - 6, cx + 6], [cy + 12, cy + 12], color=dark, lw=1.6, zorder=8)
+    elif gl_k == 2:
+        for s in (-1, 1):
+            ax.add_patch(plt.Circle((cx + s * 16, cy + 12), 10, fill=False, edgecolor=(1, 0.9, 0.5), lw=2, zorder=8))
+        ax.plot([cx - 6, cx + 6], [cy + 12, cy + 12], color=(1, 0.9, 0.5), lw=2, zorder=8)
+    # реквизит в руке
+    prop = int(rng.integers(0, 6))
+    px, py = cx + 42, 14
+    if prop == 0:  # сковородка
+        ax.add_patch(plt.matplotlib.patches.Ellipse((px, py + 10), 20, 8, facecolor=dark, zorder=6))
+        ax.plot([px + 10, px + 20], [py + 10, py + 14], color=dark, lw=2.5, zorder=6)
+    elif prop == 1:  # рыба-тотем
+        ax.add_patch(plt.matplotlib.patches.Ellipse((px, py + 10), 18, 7, facecolor=chip, zorder=6))
+        ax.plot([px - 13, px - 17, px - 9], [py + 10, py + 15, py + 13], color=chip, lw=2, zorder=6)
+    elif prop == 2:  # кирпич льда
+        ax.add_patch(plt.Polygon([(px - 9, py + 6), (px + 6, py + 3), (px + 6, py + 16), (px - 9, py + 19)],
+                                 facecolor=(0.75, 0.9, 1), edgecolor=dark, lw=1.5, zorder=6))
+    elif prop == 3:  # книга
+        ax.add_patch(plt.Rectangle((px - 8, py + 4), 16, 12, facecolor=(0.9, 0.8, 0.5), edgecolor=dark, lw=1.5, zorder=6))
+        ax.plot([px, px], [py + 4, py + 16], color=dark, lw=1, zorder=7)
+    elif prop == 4:  # звезда славы
+        ax.text(px, py + 12, "★", fontsize=17, color=sunc, ha="center", zorder=6)
     # пузырь речи
     bx, by, bww, bhh = cx - rx * 1.55, cy + ry * 0.75, 150, 34
     ax.add_patch(plt.Rectangle((bx, by), bww, bhh, facecolor="white", edgecolor=dark,
                                lw=1.5, alpha=0.92, zorder=9))
     ax.plot([bx + 26, bx + 8], [by, by - 8], color=dark, lw=1.2, zorder=9)
-    phrase = PHRASES[(jno + issue * 3) % len(PHRASES)]
+    phrase = PHRASES[(hseed + jno * 3 + issue) % len(PHRASES)]
     ax.text(bx + bww / 2, by + bhh / 2 - 4, phrase, ha="center", va="center",
             fontsize=10, color=dark, fontname="DejaVu Sans", zorder=10)
-    # звезда-слава
     ax.text(cx + rx * 0.5, cy + ry * 0.8, "★", fontsize=16, color=sunc, ha="center", zorder=8)
     path = os.path.join(IMG, "caric-%02d-%02d.png" % (jno, issue))
+    fig.savefig(path, dpi=96); plt.close(fig)
+    return path
+
+
+def cartoon(jno, issue, iss):
+    """КАРИКАТУРА номера — воспитательная жанровая сценка (не портрет).
+
+    Жанровая типология иллюстраций Вечерки:
+      · ШАРЖ — портрет героя, информационно-разъяснительный: кто и каков;
+        стабилен по имени героя, поэтому узнаваем между выпусками.
+      · КАРИКАТУРА — сценка месяца, назидательная: что случилось в партии
+        по коду index.html и какой из события следует вывод.
+    Шарж объясняет героя, карикатура воспитывает играющего.
+    """
+    import zlib
+    sky1, sky2, sunc, accent, mid, dark, chip = PAL[jno]
+    rng = np.random.default_rng((jno * 1013 + issue * 29) * 17)
+    st = sim_stats(jno, issue)
+    w, h = 250, 88
+    fig, ax, _ = _panel(jno, w, h)
+    # небо — градиент поверх базового цвета
+    for i in range(h):
+        t = i / h
+        col = tuple(t * np.array(to_rgb(sky1)) + (1 - t) * np.array(to_rgb(sky2)))
+        ax.add_patch(plt.Rectangle((0, h - 1 - i), w, 1, color=col))
+    # сугроб-полоса
+    ax.add_patch(plt.Polygon([(0, 4), (20, 11), (70, 9), (130, 13), (200, 9), (w, 12), (w, 0), (0, 0)],
+                             facecolor=(0.97, 0.98, 1), edgecolor="none", zorder=2))
+    # солнце
+    ax.add_patch(plt.Circle((w - 14, 66), 5, color=sunc, zorder=3))
+    # лёд-блок — сердце игры
+    bx, by = 8, 20
+    ax.add_patch(plt.Rectangle((bx, by), 34, 26, facecolor=(0.86, 0.94, 1),
+                               edgecolor=dark, lw=1.4, zorder=3))
+    ax.plot([bx + 12, bx + 20], [by + 22, by + 12], color=mid, lw=1.2, zorder=4)
+    ax.plot([bx + 24, bx + 30], [by + 8, by + 4], color=mid, lw=1.2, zorder=4)
+    ax.text(bx + 17, 52, "★", fontsize=10, color=sunc, ha="center", zorder=4)
+
+    def figure(px, py):
+        ax.add_patch(plt.Circle((px, py + 14), 6, color=(1, 0.93, 0.87),
+                                edgecolor=dark, lw=1, zorder=6))
+        ax.add_patch(plt.Rectangle((px - 5, py), 10, 12, color=accent,
+                                   edgecolor=dark, lw=1, zorder=5))
+        ax.add_patch(plt.Circle((px + 2, py + 15), 1.1, color=dark, zorder=7))
+
+    if st["storms"] == 0:
+        theme = 2
+    else:
+        theme = int(rng.integers(0, 2))
+    if theme == 0:  # шторм пришёл — сковорода-щит и заряд на льду
+        for (tx, ty, r) in [(86, 58, 14), (104, 60, 16), (122, 57, 13), (95, 68, 12), (113, 68, 13)]:
+            ax.add_patch(plt.Circle((tx, ty), r, color=(0.33, 0.30, 0.44), alpha=0.95, zorder=4))
+        for k in range(4):
+            ax.plot([88 + k * 8, 90 + k * 8], [48 - (k % 2) * 3, 40 - (k % 2) * 3],
+                    color=(0.55, 0.52, 0.68), lw=1, zorder=4)
+        figure(150, 16)
+        ax.add_patch(plt.matplotlib.patches.Ellipse((136, 40), 22, 8, facecolor=dark, zorder=7))
+        ax.plot([148, 158], [38, 34], color=dark, lw=2, zorder=7)
+    elif theme == 1:  # учёный у доски: лёд тает по формуле
+        ax.add_patch(plt.Rectangle((88, 18), 62, 42, facecolor=dark, edgecolor=dark, zorder=4))
+        ax.text(119, 46, "0.7+0.06·n", ha="center", va="center", fontsize=6.5,
+                color="white", fontname="DejaVu Sans", zorder=6)
+        ax.text(119, 28, "лёд тает, если нет заряда", ha="center", va="center", fontsize=5.2,
+                color=(0.8, 0.85, 0.9), fontname="DejaVu Sans", zorder=6)
+        figure(58, 16)
+        ax.text(66, 44, "→", fontsize=9, color=accent, ha="center", zorder=5)
+    else:  # тихий месяц: прорубь, сеть и улов
+        ax.add_patch(plt.matplotlib.patches.Ellipse((172, 13), 44, 8, facecolor=mid, zorder=3))
+        ax.add_patch(plt.Circle((172, 34), 13, fill=False, edgecolor=mid, lw=1.4, zorder=4))
+        ax.plot([159, 167], [38, 30], color=mid, lw=0.7, zorder=4)
+        ax.plot([185, 177], [38, 30], color=mid, lw=0.7, zorder=4)
+        for (fx, fy) in [(164, 36), (178, 40), (170, 26)]:
+            ax.add_patch(plt.matplotlib.patches.Ellipse((fx, fy), 8, 4, facecolor=chip,
+                                                        edgecolor=dark, lw=0.6, zorder=5))
+        figure(128, 16)
+
+    # верхняя лента-название
+    ax.add_patch(plt.Rectangle((0, 0), w, 12, color=dark, zorder=6))
+    ax.text(w / 2, 5.5, "★ КАРИКАТУРА НОМЕРА · событие месяца → вывод", ha="center", va="center",
+            fontsize=6.2, color=(1, 1, 1), fontname="DejaVu Sans", zorder=7)
+    # лента-мораль внизу — воспитательный вывод из приёма номера
+    moral = _one((iss.get("tip") or iss.get("forecast") or "Берегите лёд и ману.").strip(), 62)
+    ax.add_patch(plt.Rectangle((0, h - 13), w, 13, color=accent, zorder=6))
+    ax.text(w / 2, h - 6.6, "МОРАЛЬ: " + moral, ha="center", va="center", fontsize=6.0,
+            color="#FFFFFF", fontname="DejaVu Sans", zorder=7)
+    path = os.path.join(IMG, "toon-%02d-%02d.png" % (jno, issue))
     fig.savefig(path, dpi=96); plt.close(fig)
     return path
 
@@ -649,7 +814,7 @@ def _mix(c1, c2, t):
     return to_hex([(1 - t) * x + t * y for x, y in zip(a, b)])
 
 
-def _card(c, x, y, w, h, title, body, tcol, bcol, border, glass=False, fill=None):
+def _card(c, x, y, w, h, title, body, tcol, bcol, border, glass=False, fill=None, tsize=8.4, lh=None):
     """Рубриковая карточка: подложка, заголовок-плашка, обёрнутый текст."""
     if glass:
         c.setFillColor("#17101f"); c.setStrokeColor(border)
@@ -660,19 +825,20 @@ def _card(c, x, y, w, h, title, body, tcol, bcol, border, glass=False, fill=None
     c.roundRect(x + 3, y + h - 18, w - 6, 15, 5, fill=1, stroke=0)
     c.setFont("DejaVu-Bold", 7); c.setFillColor("#FFFFFF")
     c.drawCentredString(x + w / 2, y + h - 14.5, title)
-    c.setFont("DejaVu", 8.4); c.setFillColor(bcol)
+    c.setFont("DejaVu", tsize); c.setFillColor(bcol)
     yy = y + h - 32
-    for ln in wrap(body, "DejaVu", 8.4, w - 22):
+    line_h = lh if lh else tsize + 3.8
+    for ln in wrap(body, "DejaVu", tsize, w - 22):
         if yy < y + 8:
             break
         c.drawString(x + 11, yy, ln)
-        yy -= 12.2
+        yy -= line_h
 
 
 def rubric_page(c, jno, iss, issue, quote, hint, glass=False):
     """Вторая страница номера — журнальный разворот рубрик:
     табло симуляции (реальные цифры движка), инженерка, сковородник,
-    судьбы героя с шаржем, Бабай, канцелярия, память номера."""
+    судьбы героя с шаржем, карикатура месяца, Бабай, канцелярия, память номера."""
     name, slug, slogan = JOURNALS[jno]
     sky1, sky2, sun, accent, mid, dark, chip = PAL[jno]
     if glass:
@@ -733,6 +899,17 @@ def rubric_page(c, jno, iss, issue, quote, hint, glass=False):
                       iss.get("hero", "") or "серийный герой без имени",
                       490, tuple(PAL[jno]), car_p, glass)
 
+    # КАРИКАТУРА НОМЕРА — воспитательная сценка месяца. Шарж выше портретирует
+    # героя информационно-разъяснительно; карикатура назидательна: событие партии
+    # по коду index.html и мораль из приёма номера.
+    toon_p = cartoon(jno, issue, iss)
+    if glass:
+        c.setFillColor("#17101f"); c.setStrokeColor(sun); c.setLineWidth(0.8)
+    else:
+        c.setFillColor("white"); c.setStrokeColor(dark); c.setLineWidth(0.8)
+    c.roundRect(34, 354, 258, 84, 8, fill=1, stroke=1)
+    c.drawImage(toon_p, 38, 358, 250, 76, preserveAspectRatio=True, anchor="c")
+
     # ряд карточек: БАБАЙ и КАНЦЕЛЯРИЯ
     babai = BABAIS[(jno * 3 + issue) % len(BABAIS)]
     extra = EXTRA[(jno + issue * 2) % len(EXTRA)]
@@ -742,11 +919,11 @@ def rubric_page(c, jno, iss, issue, quote, hint, glass=False):
           babai + " Записано дежурным по лагерю, подписано неразборчиво, "
           "перечитано вслух при свече изо льда. Свидетелей было трое: все считают иначе. "
           "В архив сдан оригинал, в киоск — иллюстрация.",
-          gold, ink, frame_col, glass, fill=f2)
+          gold, ink, frame_col, glass, fill=f2, tsize=8.0, lh=11.4)
     _card(c, xr, bot - rowh2, cw, rowh2, "КАНЦЕЛЯРИЯ · ПРОЧЕЕ",
           extra + " Учётная строка: «" + _one(iss.get("refl", ""), 96) + "». "
           "Второй экземпляр сдан в архив Вечерки; третий — засушен между страницами 130-го номера.",
-          blue, ink, frame_col, glass, fill=f1)
+          blue, ink, frame_col, glass, fill=f1, tsize=8.0, lh=11.4)
 
     # широкая нижняя полоса с тайной строкой
     c.setFillColor(bar)
