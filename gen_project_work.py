@@ -701,7 +701,7 @@ def page_tree(c, num):
 
 
 def page_sign(c, num=30):
-    _head(c, 30, "ЗАВЕРШЕНИЕ · ПЕЧАТЬ И ПОДПИСИ", "лист приёмки")
+    _head(c, 30, "ЗАВЕРШЕНИЕ · ПЕЧАТЬ И ПОДПИСИ", "полевая страница · приёмка")
     y = H - 72
     _text_block(c, 34, y, W - 68, [
         "Работа сдана: 30 листов, все схемы воспроизводимы из файлов репозитория.",
@@ -712,8 +712,16 @@ def page_sign(c, num=30):
     for i in range(4):
         c.line(60, y, W - 60, y); c.line(60, y + 26, W - 60, y + 26)
         y -= 70
+    c.setStrokeColor("#c3d2df"); c.setLineWidth(0.55)
+    c.rect(W - 170, 150, 124, 130, fill=0, stroke=1)
+    c.setFillColor("#eef4fb"); c.rect(W - 170, 150, 124, 130, fill=1, stroke=0)
+    c.setFont("DejaVu-Obl", 7.5); c.setFillColor("#566573")
+    c.drawString(W - 164, 268, "эскиз обложки")
+    c.drawString(W - 164, 260, "следующего выпуска:")
     c.setFillColor(SUN); c.setFont("DejaVu-Bold", 12)
-    c.drawCentredString(W / 2, 120, "ПРИНЯТО ИЗДАТЕЛЬСТВОМ «ЛЕДЯНАЯ ВЕЧЕРКА» · печать ▲")
+    c.drawCentredString(W / 2, 118, "ПРИНЯТО ИЗДАТЕЛЬСТВОМ «ЛЕДЯНАЯ ВЕЧЕРКА» · печать ▲")
+    c.setFont("DejaVu-Obl", 7.5); c.setFillColor("#566573")
+    c.drawCentredString(W / 2, 90, "· лист для заметок и рисунков в дороге ·")
     _foot(c, 30, "приёмка · готово")
     c.showPage()
 

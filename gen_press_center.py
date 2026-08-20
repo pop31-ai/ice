@@ -40,7 +40,7 @@ for f in pdfs:
     elif "proektnaya-rabota" in n:
         disp = "«Проектная работа» · журнал о репозитории"
         pages = 30
-        sub = "1 выпуск · %d листов · структура git, подходы, по науке" % pages
+        sub = "1 выпуск · %d листов · структура git, подходы, по науке; полевые листы для заметок и эскизов в дороге" % pages
     else:
         disp = n[:-4].replace("journal-", "№ ").replace("-50", "").replace("-01-10-golden", " · золотая серия").replace("-01-10-glossy", " · глянец").replace("-01-10", "").replace("-", " ").replace("  ", " ")
         pages = 30 if "golden" in n else 20
