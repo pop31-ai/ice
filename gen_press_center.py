@@ -33,12 +33,17 @@ N_SIT = N_SERIES * 6
 card = []
 for f in pdfs:
     n = os.path.basename(f)
-    disp = n[:-4].replace("journal-", "№ ").replace("-50", "").replace("-01-10-golden", " · золотая серия").replace("-01-10-glossy", " · глянец").replace("-01-10", "").replace("-", " ").replace("  ", " ")
-    pages = 30 if "golden" in n else 20
-    sub = "10 выпусков · %d страниц · %s" % (pages, "золотая серия событий" if "golden" in n else ("глянцевая мода" if "glossy" in n else "из-под капота"))
+    if "ajs-grafik" in n:
+        disp = "«Айс-График» · журнал графиков"
+        pages = 200
+        sub = "10 томов · %d страниц · 80%% схем и кубов, 20%% текста" % pages
+    else:
+        disp = n[:-4].replace("journal-", "№ ").replace("-50", "").replace("-01-10-golden", " · золотая серия").replace("-01-10-glossy", " · глянец").replace("-01-10", "").replace("-", " ").replace("  ", " ")
+        pages = 30 if "golden" in n else 20
+        sub = "10 выпусков · %d страниц · %s" % (pages, "золотая серия событий" if "golden" in n else ("глянцевая мода" if "glossy" in n else "из-под капота"))
     card.append(
         '<a class="jc" href="%s" download>\n'
-        '  <div class="jcover">📰</div><div class="jname">%s</div>'
+        '  <div class="jcover">▲</div><div class="jname">%s</div>'
         '  <div class="jsub">%s</div></a>'
         % (rel(os.path.join("journals_pdf", n)), disp, sub))
 cards = "\n".join(card)
